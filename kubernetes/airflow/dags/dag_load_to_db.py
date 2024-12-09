@@ -22,7 +22,7 @@ with DAG(
 
     python_load = KubernetesPodOperator(
     task_id="load_to_db",
-    image="antoinepela/projet_reco_movies:python-transform-latest",
+    image="antoinepela/projet_reco_movies:python-load-data-latest",
     cmds=["python3", "data_to_db.py"],
     namespace= "airflow",
     env_vars={

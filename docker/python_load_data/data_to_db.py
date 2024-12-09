@@ -92,16 +92,16 @@ def upsert_to_psql(table, df):
         print(f'No rows were inserted or updated in {table.name}')
 
 if __name__ == '__main__':
-    data_directory = 'app/data'
+    data_directory = './raw'
 
     config = load_config()
 
     # Chargement et traitement des fichiers CSV par morceaux
     for filename, table in [
-        (f'{data_directory}/to_ingest/silver/processed_ratings.csv', table_ratings),
-        (f'{data_directory}/to_ingest/silver/processed_movies.csv', table_movies),
-        (f'{data_directory}/to_ingest/silver/processed_links.csv', table_links),
-        (f'{data_directory}/to_ingest/silver/users.csv', table_users)
+        (f'{data_directory}/processed_ratings.csv', table_ratings),
+        (f'{data_directory}/processed_movies.csv', table_movies),
+        (f'{data_directory}/processed_links.csv', table_links),
+        (f'{data_directory}/users.csv', table_users)
     ]:
         try:
             for chunk in pd.read_csv(filename, chunksize=1000):  # Lire par morceaux de 1000 lignes
