@@ -54,7 +54,7 @@ with DAG(
         volume_mounts=[
             k8s.V1VolumeMount(
                 name="airflow-local-raw-init-folder",
-                mount_path="./data/"
+                mount_path="./data"
             )
         ],
         is_delete_operator_pod=True,  # Supprimez le pod après exécution
@@ -86,7 +86,7 @@ with DAG(
         volume_mounts=[
             k8s.V1VolumeMount(
                 name="airflow-local-raw-init-folder",
-                mount_path="./data/bronze/"
+                mount_path="./data"
             ),
             k8s.V1VolumeMount(
                 name="airflow-local-raw-preprocess-folder",

@@ -91,10 +91,11 @@ def upsert_to_psql(table, df):
     else:
         print(f'No rows were inserted or updated in {table.name}')
 
+# ...existing code...
 if __name__ == '__main__':
-    data_directory = './raw'
-
+    data_directory = './data/silver'  # Vérifiez ce chemin
     config = load_config()
+    # ...existing code...
 
     # Chargement et traitement des fichiers CSV par morceaux
     for filename, table in [

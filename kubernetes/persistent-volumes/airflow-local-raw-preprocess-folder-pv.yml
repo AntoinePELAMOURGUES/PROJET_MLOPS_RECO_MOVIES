@@ -12,4 +12,4 @@ spec:
     namespace: airflow
     name: airflow-local-raw-preprocess-folder
   hostPath:
-    path: "/host/data/src/raw/silver/" # Vérifiez ce chemin
+    path: "/host/data/src/raw/silver/"
