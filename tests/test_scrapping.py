@@ -5,7 +5,7 @@ import importlib.util
 import sys
 
 # Définir le chemin du fichier à tester
-module_file_path = 'docker/python_scrapping/scrapping.py'
+module_file_path = './docker/python_scrapping/scrapping.py'
 
 # Charger le module
 spec = importlib.util.spec_from_file_location("scrapping_py", module_file_path)

@@ -6,7 +6,7 @@ import importlib.util
 import sys
 
 # Définir le chemin du fichier à tester
-module_file_path = '/home/antoine/jul24_cmlops_reco_film/docker/fastapi/auth.py'
+module_file_path = './docker/fastapi/auth.py'
 
 # Charger le module
 spec = importlib.util.spec_from_file_location("auth_py", module_file_path)

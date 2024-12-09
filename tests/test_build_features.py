@@ -6,7 +6,7 @@ import importlib.util
 import sys
 
 # Définir le chemin du fichier à tester
-module_file_path = '/home/antoine/jul24_cmlops_reco_film/docker/python_transform/build_features.py'
+module_file_path = './docker/python_transform/build_features.py'
 
 # Charger le module
 spec = importlib.util.spec_from_file_location("build_features", module_file_path)

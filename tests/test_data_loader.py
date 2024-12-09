@@ -7,7 +7,7 @@ import sys
 
 
 # Définir le chemin du fichier à tester
-module_file_path = '/home/antoine/jul24_cmlops_reco_film/kubernetes/airflow/order/docker/prod/python_transform/data_loader.py'
+module_file_path = './kubernetes/airflow/order/docker/prod/python_transform/data_loader.py'
 
 # Charger le module
 spec = importlib.util.spec_from_file_location("data_loader", module_file_path)
