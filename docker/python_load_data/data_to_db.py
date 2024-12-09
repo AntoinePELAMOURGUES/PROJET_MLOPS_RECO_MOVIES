@@ -93,7 +93,7 @@ def upsert_to_psql(table, df):
 
 # ...existing code...
 if __name__ == '__main__':
-    data_directory = './data/silver'  # Vérifiez ce chemin
+    data_directory = '/root/mount_file/silver'  # Vérifiez ce chemin
     config = load_config()
     # ...existing code...
 

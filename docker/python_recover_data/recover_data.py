@@ -30,6 +30,6 @@ def download_and_save_file(url, raw_data_relative_path):
 
 # ...existing code...
 if __name__ == "__main__":
-    raw_data_relative_path="./data"
+    raw_data_relative_path="/root/mount_file/bronze"
     bucket_folder_url="https://mlops-project-db.s3.eu-west-1.amazonaws.com/movie_recommandation/"
     download_and_save_file(url=bucket_folder_url, raw_data_relative_path=raw_data_relative_path)

@@ -38,23 +38,22 @@ with DAG(
         image_pull_policy='Always',  # Forcer le rechargement de l'image
         )
 
-
     # Tâche pour récupérer les données à partir de fichiers CSV
     python_recover_data = KubernetesPodOperator(
         task_id="recover_data",
         image="antoinepela/projet_reco_movies:python-recover-data-latest",
         cmds=["python3", "recover_data.py"],
         namespace="airflow",
-        volumes=[
-            k8s.V1Volume(
-                name="airflow-local-raw-init-folder",
-                persistent_volume_claim=k8s.V1PersistentVolumeClaimVolumeSource(claim_name="airflow-local-raw-init-folder")
-            )
-        ],
         volume_mounts=[
             k8s.V1VolumeMount(
-                name="airflow-local-raw-init-folder",
-                mount_path="./data"
+                name="airflow-local-raw-folder",
+                mount_path="/root/mount_file/",
+            )
+        ],
+        volumes=[
+            k8s.V1Volume(
+                name="airflow-local-raw-folder",
+                persistent_volume_claim=k8s.V1PersistentVolumeClaimVolumeSource(claim_name="airflow-local-raw-folder")
             )
         ],
         is_delete_operator_pod=True,  # Supprimez le pod après exécution
@@ -75,22 +74,14 @@ with DAG(
         namespace="airflow",
         volumes=[
             k8s.V1Volume(
-                name="airflow-local-raw-init-folder",
-                persistent_volume_claim=k8s.V1PersistentVolumeClaimVolumeSource(claim_name="airflow-local-raw-init-folder")
-            ),
-            k8s.V1Volume(
-                name="airflow-local-raw-preprocess-folder",
-                persistent_volume_claim=k8s.V1PersistentVolumeClaimVolumeSource(claim_name="airflow-local-raw-preprocess-folder")
+                name="airflow-local-raw-folder",
+                persistent_volume_claim=k8s.V1PersistentVolumeClaimVolumeSource(claim_name="airflow-local-raw-folder")
             ),
         ],
         volume_mounts=[
             k8s.V1VolumeMount(
-                name="airflow-local-raw-init-folder",
-                mount_path="./data"
-            ),
-            k8s.V1VolumeMount(
-                name="airflow-local-raw-preprocess-folder",
-                mount_path="./data/silver"
+                name="airflow-local-raw-folder",
+                mount_path="/root/mount_file"
             ),
         ],
         is_delete_operator_pod=True,  # Supprimez le pod après exécution
@@ -116,14 +107,14 @@ with DAG(
         secrets=[secret_password],
         volumes=[
             k8s.V1Volume(
-                name="airflow-local-raw-preprocess-folder",
-                persistent_volume_claim=k8s.V1PersistentVolumeClaimVolumeSource(claim_name="airflow-local-raw-preprocess-folder")
+                name="airflow-local-raw-folder",
+                persistent_volume_claim=k8s.V1PersistentVolumeClaimVolumeSource(claim_name="airflow-local-raw-folder")
             )
         ],
         volume_mounts=[
             k8s.V1VolumeMount(
-                name="airflow-local-raw-preprocess-folder",
-                mount_path="./data/silver/"
+                name="airflow-local-raw-folder",
+                mount_path="/root/mount_file"
             )
         ],
         is_delete_operator_pod=True,  # Supprimez le pod après exécution

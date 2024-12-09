@@ -179,8 +179,8 @@ def save_data(df_ratings, df_movies, df_links, df_users, data_directory):
         print(f"Error saving files: {e}")
 
 if __name__ == "__main__":
-    raw_data_relative_path="./data"
-    data_directory = "./data/silver"
+    raw_data_relative_path="/root/mount_file/bronze"
+    data_directory = "/root/mount_file/silver"
     # Chargement des données à partir du chemin spécifié
     try:
         df_ratings, df_movies, df_links = load_data(raw_data_relative_path)

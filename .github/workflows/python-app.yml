@@ -39,12 +39,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install flake8
           pip install -r tests/requirements-test.txt
+          pip install -e .
       - name: Lint with flake8
         run: |
           # stop the build if there are Python syntax errors or undefined names
-          flake8 tests/test_*.py --count --select=E9,F63,F7,F82 --show-source --statistics --exclude=tests/Dags_airflow/*
+          flake8 tests/test_*.py --count --select=E9,F63,F7,F82 --show-source --statistics
           # exit-zero treats all errors as warnings
-          flake8 tests/test_*.py --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics --exclude=tests/Dags_airflow/*
+          flake8 tests/test_*.py --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
       - name: Test with pytest
         env:
           POSTGRES_USER: test_user
@@ -52,6 +53,7 @@ jobs:
           POSTGRES_DB: test_db
           POSTGRES_HOST: localhost
           POSTGRES_PORT: 5432
+          PYTHONPATH: ${{ github.workspace }}
         run: |
           pytest tests/test_api_auth.py
           pytest tests/test_api_predict.py
