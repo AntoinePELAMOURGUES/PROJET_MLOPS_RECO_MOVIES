@@ -180,7 +180,7 @@ def save_data(df_ratings, df_movies, df_links, df_users, data_directory):
 
 if __name__ == "__main__":
 
-    raw_data_relative_path="./data/bronze/"
+    raw_data_relative_path="./data/bronze"
 
     data_directory = "./data/silver"
 

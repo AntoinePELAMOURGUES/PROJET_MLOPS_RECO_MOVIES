@@ -46,15 +46,15 @@ start-airflow:
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-dags-folder-pv.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-logs-folder-pv.yml
 	kubectl apply -f kubernetes/persistent-volumes/mlfow-storage-pv.yml
-	kubectl apply -f kubernetes/persistent-volumes/airflow-local-raw-folder-pv.yml
-	kubectl apply -f kubernetes/persistent-volumes/
-	airflow-local-dags-folder-pvc.yml
+	kubectl apply -f kubernetes/persistent-volumes/airflow-local-raw-init-folder-pv.yml
+	kubectl apply -f kubernetes/persistent-volumes/airflow-local-raw-preprocess-folder-pv.yml
+	kubectl apply -f kubernetes/persistent-volumes/airflow-local-dags-folder-pvc.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-logs-folder-pvc.yml
 	kubectl apply -f kubernetes/persistent-volumes/mlfow-storage-pvc.yml
-	kubectl apply -f kubernetes/persistent-volumes/airflow-local-raw-folder-pvc.yml
+	kubectl apply -f kubernetes/persistent-volumes/airflow-local-raw-init-folder-pvc.yml
+	kubectl apply -f kubernetes/persistent-volumes/airflow-local-raw-preprocess-folder-pvc.yml
 	kubectl apply -f kubernetes/secrets/airflow-secrets.yaml
 	kubectl apply -f kubernetes/configmaps/airflow-configmaps.yml
-
 	# Deploy pgAdmin service for managing PostgreSQL databases
 	kubectl apply -f kubernetes/deployments/pgadmin-deployment.yml
 	kubectl apply -f kubernetes/services/pgadmin-service.yml

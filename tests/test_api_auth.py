@@ -4,15 +4,14 @@ import pandas as pd
 import numpy as np
 import importlib.util
 import sys
+from docker.fastapi.auth import validate_username, validate_email, validate_password
 
-# Définir le chemin du fichier à tester
-module_file_path = './docker/fastapi/auth.py'
 
-# Charger le module
-spec = importlib.util.spec_from_file_location("auth_py", module_file_path)
-auth_py = importlib.util.module_from_spec(spec)
-sys.modules["auth_py"] = auth_py
-spec.loader.exec_module(auth_py)
+# # Charger le module
+# spec = importlib.util.spec_from_file_location("auth_py", module_file_path)
+# auth_py = importlib.util.module_from_spec(spec)
+# sys.modules["auth_py"] = auth_py
+# spec.loader.exec_module(auth_py)
 
 
 
@@ -57,31 +56,31 @@ def mock_data_loading(mock_data):
 def test_validate_username():
     # Test pour le nom d'utilisateur valide
     valid_username = "valid_username"
-    error_message = auth_py.validate_username(valid_username)
+    error_message = validate_username(valid_username)
     assert error_message is None
 
     # Test pour le nom d'utilisateur invalide
     invalid_username = "@invalidusername"
-    error_message = auth_py.validate_username(invalid_username)
+    error_message = validate_username(invalid_username)
     assert error_message == "Le nom d'utilisateur ne doit contenir que des lettres, chiffres et underscores."
 
 @pytest.mark.usefixtures("mock_db")
 def test_validate_email():
     # Test pour l'email valide
     valid_email = "valid@example.com"
-    error_message = auth_py.validate_email(valid_email)
+    error_message = validate_email(valid_email)
     assert error_message is None
 
     # Test pour l'email invalide
     invalid_email = "invalid-email"
-    error_message = auth_py.validate_email(invalid_email)
+    error_message = validate_email(invalid_email)
     assert error_message == "L'adresse e-mail n'est pas valide."
 
 @pytest.mark.usefixtures("mock_db")
 def test_validate_password():
     # Test pour le mot de passe valide
     valid_password = "StrongPassword123!"
-    error_message = auth_py.validate_password(valid_password)
+    error_message = validate_password(valid_password)
     assert error_message is None
 
     # Test pour différents cas de mots de passe invalides
@@ -94,5 +93,5 @@ def test_validate_password():
     ]
 
     for password, expected_error in test_cases:
-        error_message = auth_py.validate_password(password)
+        error_message = validate_password(password)
         assert error_message == expected_error, f"Test failed for password: {password}"
