@@ -44,6 +44,9 @@ with DAG(
             'USER': 'postgres',
         },
         secrets=[secret_password, secret_token],  # Ajout des deux secrets
+        is_delete_operator_pod=True,  # Supprimez le pod après exécution
+        get_logs=True,          # Récupérer les logs du pod
+        image_pull_policy='Always',  # Forcer le rechargement de l'image
     )
 
 dag_scraping_and_inserting_movies

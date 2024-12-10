@@ -1,13 +1,8 @@
 import os
 import time
-import logging
 import requests
 from bs4 import BeautifulSoup as bs
 from sqlalchemy import create_engine, table, column, select, insert
-
-# Configurer le logger pour suivre les événements et les erreurs
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # Définition des tables SQLAlchemy pour les opérations d'upsert
 table_movies = table('movies',
@@ -24,6 +19,7 @@ table_links = table('links',
     column('tmdbid')
 )
 
+# Récupération du token TMDB depuis les variables d'environnement
 tmdb_token = os.getenv("TMDB_TOKEN")
 
 def load_config():
@@ -38,7 +34,6 @@ def load_config():
 
 def scrape_imdb_first_page():
     """Scrape les données des films depuis IMDb et les renvoie sous forme de listes."""
-    start_time = time.time()
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
     }
@@ -52,55 +47,53 @@ def scrape_imdb_first_page():
         links = [a['href'] for a in soup.find_all('a', class_='ipc-title-link-wrapper')]
         cleaned_links = [link.split('/')[2].split('?')[0].replace('tt', '') for link in links]
 
-        logger.info("Liens IMDB nettoyés: %s", cleaned_links)
         return cleaned_links
-
     except requests.RequestException as e:
-        logger.error(f"Erreur lors de la récupération de la page IMDb: {e}")
-
-    finally:
-        end_time = time.time()
-        duration = end_time - start_time
-        logger.info(f"Durée du scraping IMDb: {duration} secondes")
+        print(f"Erreur lors de la récupération de la page IMDb : {e}")
+        return []
 
 def genres_request():
-    """Effectue des requêtes à l'API TMDB pour récupérer les informations des films."""
+    """Effectue des requêtes à l'API TMDB pour récupérer les informations des genres de films."""
     url = "https://api.themoviedb.org/3/genre/movie/list?language=en"
     headers = {
         "accept": "application/json",
         "Authorization": f"Bearer {tmdb_token}"
     }
 
-    response = requests.get(url, headers=headers)
+    try:
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()  # Vérifier que la requête a réussi
 
-    if response.status_code == 200:
         data = response.json()
         genres = {str(genre["id"]): genre["name"] for genre in data["genres"]}
         return genres
-        logger.info("Genres récupérés avec succès: %s", genres)
+    except requests.RequestException as e:
+        print(f"Erreur lors de la récupération des genres : {e}")
+        return {}
 
 def api_tmdb_request():
     """Effectue des requêtes à l'API TMDB pour récupérer les informations des films."""
     results = {}
     cleaned_links = scrape_imdb_first_page()
+
+    if not cleaned_links:  # Vérifier si le scraping a échoué
+        return results
+
     genres = genres_request()
-    logger.info("Liens nettoyés reçus via XCom: %s", cleaned_links)
 
     for index, movie_id in enumerate(cleaned_links):
         url = f"https://api.themoviedb.org/3/find/tt{movie_id}?external_source=imdb_id"
-
-        logger.info("Url pour le film index %s: %s", index, url)
 
         headers = {
             "accept": "application/json",
             "Authorization": f"Bearer {tmdb_token}"
         }
 
-        response = requests.get(url, headers=headers)
+        try:
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()  # Vérifier que la requête a réussi
 
-        if response.status_code == 200:
             data = response.json()
-            logger.info("Données reçues pour le film index %s: %s", index, data)
 
             if data["movie_results"]:
                 movie_info = data["movie_results"][0]
@@ -117,25 +110,29 @@ def api_tmdb_request():
                     "genres": [genres[str(genre_id)] for genre_id in movie_info['genre_ids']]
                 }
             else:
-                results[str(index)] = {"error": f"Request failed with status code {response.status_code}"}
+                results[str(index)] = {"error": f"Aucun résultat trouvé pour l'ID IMDb {movie_id}"}
 
-        return results
+        except requests.RequestException as e:
+            results[str(index)] = {"error": f"Erreur lors de la requête TMDB : {e}"}
+
+    return results
 
 def insert_data_movies():
     """Insère les données des films dans la base de données en utilisant SQLAlchemy."""
     start_time = time.time()
+
     api_results = api_tmdb_request()
 
     config = load_config()  # Charger la configuration de la base de données
     conn_string = f"postgresql://{config['user']}:{config['password']}@{config['host']}/{config['database']}"
 
+    db = create_engine(conn_string)
+
     try:
-        db = create_engine(conn_string)
         with db.begin() as conn:
             for index, movie_data in api_results.items():
-                # Vérifier si une erreur a été retournée pour ce film
-                if "error" in movie_data:
-                    logger.error(f"Erreur pour le film index {index}: {movie_data['error']}")
+                if "error" in movie_data:  # Vérifier si une erreur a été retournée
+                    print(movie_data["error"])
                     continue
 
                 title = movie_data["title"]
@@ -177,20 +174,11 @@ def insert_data_movies():
                     )
                     conn.execute(insert_link_query)
 
-                    logger.info(f"Film inséré: {title} avec ID {last_inserted_id}")
                 else:
-                    logger.info(f"Le film {title} existe déjà dans la base de données.")
-
-            logger.info("Données insérées avec succès dans les tables movies & links.")
+                    print(f"Le film {title} ({year}) existe déjà dans la base de données.")
 
     except Exception as e:
-        logger.error(f"Erreur lors de l'insertion des données: {e}")
-
-    finally:
-        end_time = time.time()
-        duration = end_time - start_time
-
-        logger.info(f"Durée de l'insertion des données: {duration} secondes")
+        print(f"Erreur lors de l'insertion dans la base de données : {e}")
 
 if __name__ == "__main__":
     insert_data_movies()

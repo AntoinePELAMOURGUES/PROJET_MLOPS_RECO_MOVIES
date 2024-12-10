@@ -4,7 +4,12 @@ import pandas as pd
 import numpy as np
 from docker.fastapi.auth import validate_username, validate_email, validate_password
 
-
+# Mock the Kubernetes config loading
+@pytest.fixture(autouse=True)
+def mock_kubernetes_config():
+    with patch('kubernetes.config.load_incluster_config') as mock_load:
+        mock_load.return_value = None
+        yield
 
 
 @pytest.fixture

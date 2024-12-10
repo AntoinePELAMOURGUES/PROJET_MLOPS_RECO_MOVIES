@@ -52,6 +52,7 @@ start-airflow:
 	kubectl apply -f kubernetes/persistent-volumes/mlfow-storage-pvc.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-raw-init-folder-pvc.yml
 	kubectl apply -f kubernetes/secrets/airflow-secrets.yaml
+	kubectl apply -f kubernetes/secrets/mlflow-secrets.yaml
 	kubectl apply -f kubernetes/configmaps/airflow-configmaps.yml
 	# Deploy pgAdmin service for managing PostgreSQL databases
 	kubectl apply -f kubernetes/deployments/pgadmin-deployment.yml
@@ -64,6 +65,7 @@ start-mlflow:
 	helm install mlf-ts bitnami/mlflow --namespace $(NAMESPACE3) --create-namespace
 
 	kubectl apply -f kubernetes/services/mlflow-service.yml
+
 
 # Deploy API services (FastAPI and Streamlit)
 start-api:

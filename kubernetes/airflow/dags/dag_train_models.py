@@ -30,6 +30,8 @@ with DAG(
             'DATABASE': 'postgres',
             'USER': 'postgres',
             'MLFLOW_TRACKING_URI': 'http://mlf-ts-mlflow-tracking.mlflow.svc.cluster.local',
+            'MLFLOW_TRACKING_USERNAME': 'user',
+            'MLFLOW_TRACKING_PASSWORD': 'Nds70uprI3',
         },
     secrets= [secret_password],
     volumes=[
@@ -44,6 +46,9 @@ with DAG(
             mount_path="/root/mount_file"
         )
     ],  # Chemin où les modèles seront sauvegardés.
+    is_delete_operator_pod=True,  # Supprimez le pod après exécution
+    get_logs=True,          # Récupérer les logs du pod
+    image_pull_policy='Always',  # Forcer le rechargement de l'image
 )
 
 

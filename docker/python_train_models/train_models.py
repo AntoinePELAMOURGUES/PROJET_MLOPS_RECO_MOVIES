@@ -62,6 +62,8 @@ def train_SVD_model(df, data_directory) -> tuple:
     Args:
         df (pd.DataFrame): DataFrame contenant les colonnes userId, movieId et rating.
     """
+
+
     # Démarrer une nouvelle expérience MLflow
     mlflow.start_run()
 
@@ -69,7 +71,7 @@ def train_SVD_model(df, data_directory) -> tuple:
 
     # Préparer les données pour Surprise
     reader = Reader(rating_scale=(0.5, 5))
-    data = Dataset.load_from_df(df[['userId', 'movieId', 'rating']], reader=reader)
+    data = Dataset.load_from_df(df[['userid', 'movieid', 'rating']], reader=reader)
 
     # Diviser les données en ensembles d'entraînement et de test
     trainset, testset = train_test_split(data, test_size=0.25)
@@ -103,7 +105,7 @@ def train_SVD_model(df, data_directory) -> tuple:
     end_time = datetime.now()
 
     duration = end_time - start_time
-    print(f'Durée de l\'entraînement : {duration}')
+    print(f"Durée de l'entraînement : {duration}")
 
     # Finir l'exécution de l'expérience MLflow
     mlflow.end_run()
@@ -119,17 +121,17 @@ def create_X(df):
     Returns:
         tuple: (matrice_creuse, user_mapper, movie_mapper, user_inv_mapper, movie_inv_mapper)
     """
-    M = df['userId'].nunique()
-    N = df['movieId'].nunique()
+    M = df['userid'].nunique()
+    N = df['movieid'].nunique()
 
-    user_mapper = dict(zip(np.unique(df["userId"]), list(range(M))))
-    movie_mapper = dict(zip(np.unique(df["movieId"]), list(range(N))))
+    user_mapper = dict(zip(np.unique(df["userid"]), list(range(M))))
+    movie_mapper = dict(zip(np.unique(df["movieid"]), list(range(N))))
 
-    user_inv_mapper = dict(zip(list(range(M)), np.unique(df["userId"])))
-    movie_inv_mapper = dict(zip(list(range(N)), np.unique(df["movieId"])))
+    user_inv_mapper = dict(zip(list(range(M)), np.unique(df["userid"])))
+    movie_inv_mapper = dict(zip(list(range(N)), np.unique(df["movieid"])))
 
-    user_index = [user_mapper[i] for i in df['userId']]
-    item_index = [movie_mapper[i] for i in df['movieId']]
+    user_index = [user_mapper[i] for i in df['userid']]
+    item_index = [movie_mapper[i] for i in df['movieid']]
 
     X = csr_matrix((df["rating"], (user_index,item_index)), shape=(M,N))
 
@@ -177,10 +179,19 @@ def train_matrix_model(df, data_directory, k = 10, metric='cosine'):
 
     mlflow.end_run()  # Finir l'exécution de l'expérience MLflow
 
+def authenticate_mlflow():
+    """Authentifie MLflow en utilisant les variables d'environnement."""
+    mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI"))
+    mlflow.set_experiment("Movie Recommendation Models")
+    mlflow_username = os.getenv("MLFLOW_TRACKING_USERNAME")
+    mlflow_password = os.getenv("MLFLOW_TRACKING_PASSWORD")
+    if mlflow_username and mlflow_password:
+        os.environ["MLFLOW_TRACKING_USERNAME"] = mlflow_username
+        os.environ["MLFLOW_TRACKING_PASSWORD"] = mlflow_password
+
 if __name__ == "__main__":
     data_directory = '/root/mount_file/'
-    # Définir l'URL du serveur MLflow
-    mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI"))
+    authenticate_mlflow()
     ratings = fetch_ratings('ratings')
     print('Entrainement du modèle SVD')
     train_SVD_model(ratings, data_directory)
