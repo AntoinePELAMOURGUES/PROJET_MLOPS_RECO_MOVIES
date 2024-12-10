@@ -11,4 +11,4 @@ spec:
     namespace: airflow
     name: models-storage-pvc
   hostPath:
-    path: "/host/kubernetes/mlflow/models"
+    path: "/host/data/models"

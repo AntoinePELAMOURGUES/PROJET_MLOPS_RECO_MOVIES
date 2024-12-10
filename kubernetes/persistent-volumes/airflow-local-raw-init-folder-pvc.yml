@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: airflow-local-raw-init-folder
+  name: airflow-local-raw-folder
   namespace: airflow
 spec:
   storageClassName: local-path

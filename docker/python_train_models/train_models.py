@@ -42,7 +42,7 @@ def fetch_ratings(table):
     if conn is not None:
         try:
             # Exécutez une requête SQL pour récupérer les données de la table ratings
-            query = f"SELECT * FROM {table};"
+            query = f"SELECT userid, movieid, rating FROM {table};"
             df = pd.read_sql_query(query, conn)
             print("Data fetched successfully.")
             return df
@@ -56,7 +56,7 @@ def fetch_ratings(table):
         return None
 
 
-def train_SVD_model(df) -> tuple:
+def train_SVD_model(df, data_directory) -> tuple:
     """Entraîne un modèle SVD de recommandation et sauvegarde le modèle.
 
     Args:
@@ -86,6 +86,13 @@ def train_SVD_model(df) -> tuple:
     acc_rounded = round(acc, 2)
 
     print("Valeur de l'écart quadratique moyen (RMSE) :", acc_rounded)
+
+    os.makedirs(data_directory, exist_ok=True)  # Crée le répertoire si nécessaire
+
+    # Enregistrement du modèle avec pickle
+    with open(f'{data_directory}/model_SVD.pkl', 'wb') as f:
+        pickle.dump(model, f)
+        print(f"Modèle SVD enregistré avec pickle sous {data_directory}/model_SVD.pkl.")
 
     # Enregistrer les métriques dans MLflow
     mlflow.log_metric("RMSE", acc_rounded)
@@ -129,7 +136,7 @@ def create_X(df):
     return X, user_mapper, movie_mapper, user_inv_mapper, movie_inv_mapper
 
 
-def train_matrix_model(df, k = 10, metric='cosine'):
+def train_matrix_model(df, data_directory, k = 10, metric='cosine'):
     """Entraîne et sauvegarde un modèle KNN basé sur une matrice creuse.
 
     Args:
@@ -154,6 +161,13 @@ def train_matrix_model(df, k = 10, metric='cosine'):
     duration = end_time - start_time
     print(f'Durée de l\'entraînement : {duration}')
 
+    os.makedirs(data_directory, exist_ok=True)  # Crée le répertoire si nécessaire
+
+    # Enregistrement du modèle avec pickle
+    with open(f'{data_directory}/model_KNN.pkl', 'wb') as f:
+        pickle.dump(kNN, f)
+        print(f"Modèle SVD enregistré avec pickle sous {data_directory}/model_KNN.pkl.")
+
     # Enregistrer les informations du modèle dans MLflow (par exemple la durée d'entraînement)
     mlflow.log_param("k_neighbors", k)
     mlflow.log_param("metric", metric)
@@ -164,10 +178,11 @@ def train_matrix_model(df, k = 10, metric='cosine'):
     mlflow.end_run()  # Finir l'exécution de l'expérience MLflow
 
 if __name__ == "__main__":
+    data_directory = '/root/mount_file/'
     # Définir l'URL du serveur MLflow
     mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI"))
     ratings = fetch_ratings('ratings')
     print('Entrainement du modèle SVD')
-    train_SVD_model(ratings)
+    train_SVD_model(ratings, data_directory)
     print('Entrainement du modèle CSR Matrix')
-    train_matrix_model(ratings)
+    train_matrix_model(ratings, data_directory)

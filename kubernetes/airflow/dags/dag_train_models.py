@@ -11,12 +11,13 @@ secret_password  = Secret(
 )
 
 with DAG(
-  dag_id='train_models',
+  dag_id='first_train_models',
   tags=['antoine'],
   default_args={
     'owner': 'airflow',
     'start_date': days_ago(0, minute=1),
     },
+  schedule_interval=None,  # Pas de planification automatique
   catchup=False
 ) as dag:
 
@@ -33,14 +34,14 @@ with DAG(
     secrets= [secret_password],
     volumes=[
         k8s.V1Volume(
-            name="model-storage-pv",
-            persistent_volume_claim=k8s.V1PersistentVolumeClaimVolumeSource(claim_name="model-storage-pvc")
+            name="models-storage-pv",
+            persistent_volume_claim=k8s.V1PersistentVolumeClaimVolumeSource(claim_name="models-storage-pvc")
         )
     ],
     volume_mounts=[
         k8s.V1VolumeMount(
-            name="model-storage",
-            mount_path="/models"
+            name="models-storage-pv",
+            mount_path="/root/mount_file"
         )
     ],  # Chemin où les modèles seront sauvegardés.
 )

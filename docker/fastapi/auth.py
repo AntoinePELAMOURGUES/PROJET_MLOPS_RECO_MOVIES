@@ -13,7 +13,7 @@ import time
 import re
 import psycopg2
 import logging
-from kubernetes import client, config
+from kubernetes import config
 
 # Configurer le logger
 logging.basicConfig(level=logging.INFO)

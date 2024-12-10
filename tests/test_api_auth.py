@@ -2,16 +2,8 @@ import pytest
 from unittest.mock import patch, MagicMock
 import pandas as pd
 import numpy as np
-import importlib.util
-import sys
 from docker.fastapi.auth import validate_username, validate_email, validate_password
 
-
-# # Charger le module
-# spec = importlib.util.spec_from_file_location("auth_py", module_file_path)
-# auth_py = importlib.util.module_from_spec(spec)
-# sys.modules["auth_py"] = auth_py
-# spec.loader.exec_module(auth_py)
 
 
 

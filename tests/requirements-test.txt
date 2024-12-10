@@ -22,6 +22,7 @@ passlib
 rapidfuzz
 python-jose[cryptography]
 pydantic>=2.7.0,<3.0.0
+kubernetes
 
 # Test client for Airflow
 apache-airflow

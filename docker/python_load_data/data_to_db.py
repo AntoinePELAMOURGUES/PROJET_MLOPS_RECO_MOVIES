@@ -13,6 +13,7 @@ table_movies = table('movies',
 )
 
 table_ratings = table('ratings',
+    column('id'),
     column('userid'),
     column('movieid'),
     column('rating'),
@@ -21,6 +22,7 @@ table_ratings = table('ratings',
 )
 
 table_links = table('links',
+    column('id'),
     column('movieid'),
     column('imdbid'),
     column('tmdbid')
@@ -41,6 +43,7 @@ def load_config():
         'user': os.getenv('USER'),
         'password': os.getenv('PASSWORD')
     }
+
 
 def connect(config):
     """Connecte au serveur PostgreSQL et retourne la connexion."""
@@ -65,44 +68,36 @@ def execute_query_psql(query, config):
         return 0
 
 def upsert_to_psql(table, df):
-    """Insère ou met à jour des enregistrements dans une table.
+    """Insère des enregistrements dans une table.
 
     Args:
         table: La table SQLAlchemy cible.
-        df (pd.DataFrame): DataFrame contenant les données à insérer ou mettre à jour.
-
+        df (pd.DataFrame): DataFrame contenant les données à insérer.
     """
 
-    # Préparation des données pour l'upsert
+    # Préparation des données pour l'insertion
     dict_data = df.where(pd.notnull(df), None).to_dict(orient='records')
 
-    # Création de l'instruction d'insertion avec gestion des conflits
+    # Création de l'instruction d'insertion
     insert_stmt = insert(table).values(dict_data)
 
-    do_update_stmt = insert_stmt.on_conflict_do_update(
-        index_elements=[table.c.id],  # Remplacez par la clé primaire appropriée
-        set_={col.name: insert_stmt.excluded[col.name] for col in table.columns}
-    )
+    try:
+        rowcount = execute_query_psql(insert_stmt, config)
+        print(f'{rowcount} rows have been inserted into {table.name}')
+    except Exception as e:
+        print(f'An error occurred while inserting data into {table.name}: {e}')
 
-    rowcount = execute_query_psql(do_update_stmt, config)
 
-    if rowcount > 0:
-        print(f'{rowcount} rows have been inserted or updated in {table.name}')
-    else:
-        print(f'No rows were inserted or updated in {table.name}')
-
-# ...existing code...
 if __name__ == '__main__':
-    data_directory = '/root/mount_file/silver'  # Vérifiez ce chemin
+    data_directory = '/root/mount_file/silver'
     config = load_config()
-    # ...existing code...
 
-    # Chargement et traitement des fichiers CSV par morceaux
+     # Chargement et traitement des fichiers CSV par morceaux
     for filename, table in [
-        (f'{data_directory}/processed_ratings.csv', table_ratings),
         (f'{data_directory}/processed_movies.csv', table_movies),
+        (f'{data_directory}/users.csv', table_users),
+        (f'{data_directory}/processed_ratings.csv', table_ratings),
         (f'{data_directory}/processed_links.csv', table_links),
-        (f'{data_directory}/users.csv', table_users)
     ]:
         try:
             for chunk in pd.read_csv(filename, chunksize=1000):  # Lire par morceaux de 1000 lignes

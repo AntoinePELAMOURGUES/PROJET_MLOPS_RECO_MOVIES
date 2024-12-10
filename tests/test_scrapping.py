@@ -1,17 +1,7 @@
 import os
 import pytest
 from unittest import mock
-import importlib.util
-import sys
-
-# Définir le chemin du fichier à tester
-module_file_path = './docker/python_scrapping/scrapping.py'
-
-# Charger le module
-spec = importlib.util.spec_from_file_location("scrapping_py", module_file_path)
-scrapping_py = importlib.util.module_from_spec(spec)
-sys.modules["scrapping_py"] = scrapping_py
-spec.loader.exec_module(scrapping_py)
+from docker.python_scrapping.scrapping import scrape_imdb_first_page, genres_request, api_tmdb_request, insert_data_movies
 
 @pytest.fixture
 def mock_env_variables(monkeypatch):
@@ -28,7 +18,7 @@ def test_scrape_imdb_first_page(mock_env_variables):
         mock_get.return_value.status_code = 200
         mock_get.return_value.content = b'<html><body><a class="ipc-title-link-wrapper" href="/title/tt1234567/">Film 1</a></body></html>'
 
-        result = scrapping_py.scrape_imdb_first_page()
+        result = scrape_imdb_first_page()
         assert result == ['1234567']
 
 
@@ -43,7 +33,7 @@ def test_genres_request(mock_env_variables):
             ]
         }
 
-        result = scrapping_py.genres_request()
+        result = genres_request()
         assert result == {'28': 'Action', '35': 'Comedy'}
 
 def test_api_tmdb_request(mock_env_variables):
@@ -62,7 +52,7 @@ def test_api_tmdb_request(mock_env_variables):
             })
         ]
 
-        result = scrapping_py.api_tmdb_request()
+        result = api_tmdb_request()
         assert isinstance(result, dict)
         assert '0' in result
         assert result['0']['title'] == 'Test Movie'
@@ -87,7 +77,7 @@ def test_insert_data_movies(mock_create_engine, mock_env_variables):
             }
         }
 
-        scrapping_py.insert_data_movies()
+        insert_data_movies()
 
         # Vérifier que les méthodes d'insertion ont été appelées
         assert mock_conn.execute.call_count > 0
