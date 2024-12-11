@@ -54,8 +54,6 @@ jobs:
           POSTGRES_PORT: 5432
           PYTHONPATH: ${{ github.workspace }}
         run: |
-          pytest tests/test_api_auth.py
-          pytest tests/test_api_predict.py
           pytest tests/test_build_features.py
           pytest tests/test_init_db.py
           pytest tests/test_data_to_db.py

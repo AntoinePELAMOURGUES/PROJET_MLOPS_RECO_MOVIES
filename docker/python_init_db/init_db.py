@@ -1,87 +1,77 @@
 import os
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import Column, Integer, String, Float, ForeignKey
+import psycopg2
+from psycopg2 import OperationalError
 
-# Define the database connection parameters
-conn_keys = ['conn_id', 'conn_type', 'host', 'login', 'password', 'schema']
+def create_connection():
+    """Crée une connexion à la base de données PostgreSQL."""
+    try:
+        conn = psycopg2.connect(
+            database=os.getenv("DATABASE"),
+            host=os.getenv("AIRFLOW_POSTGRESQL_SERVICE_HOST"),
+            user=os.getenv("USER"),
+            password=os.getenv("PASSWORD"),
+            port=os.getenv("AIRFLOW_POSTGRESQL_SERVICE_PORT")
+        )
+        print("Connexion à la base de données réussie.")
+        return conn
+    except OperationalError as e:
+        print(f"Erreur lors de la connexion à la base de données: {e}")
+        return None
 
-def get_postgres_conn_conf():
-    postgres_conn_conf = {}
-    postgres_conn_conf['host'] = os.getenv("AIRFLOW_POSTGRESQL_SERVICE_HOST")
-    postgres_conn_conf['port'] = os.getenv("AIRFLOW_POSTGRESQL_SERVICE_PORT")
 
-    if postgres_conn_conf['host'] is None:
-        raise TypeError("The AIRFLOW_POSTGRESQL_SERVICE_HOST isn't defined")
-    elif postgres_conn_conf['port'] is None:
-        raise TypeError("The AIRFLOW_POSTGRESQL_SERVICE_PORT isn't defined")
+sql_create_movies_table = """
+CREATE TABLE IF NOT EXISTS movies (
+    movieid SERIAL PRIMARY KEY,
+    title VARCHAR(200) NOT NULL,
+    genres VARCHAR,
+    year INTEGER
+);"""
 
-    postgres_conn_conf['conn_id'] = 'postgres'
-    postgres_conn_conf['conn_type'] = 'postgres'
-    postgres_conn_conf['login'] = 'postgres'
-    postgres_conn_conf['password'] = 'postgres'
-    postgres_conn_conf['schema'] = 'postgres'
+sql_create_ratings_table = """
+CREATE TABLE IF NOT EXISTS ratings (
+    id SERIAL PRIMARY KEY,
+    userid INTEGER,
+    movieid INTEGER REFERENCES movies(movieid),
+    rating FLOAT NOT NULL,
+    timestamp INTEGER,
+    bayesian_mean FLOAT NOT NULL
+);"""
 
-    return postgres_conn_conf
+sql_create_links_table = """
+CREATE TABLE IF NOT EXISTS links (
+    id SERIAL PRIMARY KEY,
+    movieid INTEGER REFERENCES movies(movieid),
+    imdbid INTEGER,
+    tmdbid INTEGER
+);"""
 
-# Define SQLAlchemy base and models
-Base = declarative_base()
+sql_create_users_table = """
+CREATE TABLE IF NOT EXISTS users (
+    userid SERIAL PRIMARY KEY,
+    username VARCHAR(50) NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
+    hashed_password VARCHAR(300) NOT NULL
+);"""
 
-class Movie(Base):
-    __tablename__ = 'movies'
-
-    movieid = Column(Integer, primary_key=True)
-    title = Column(String(200), nullable=False)
-    genres = Column(String)
-    year = Column(Integer)
-
-class Rating(Base):
-    __tablename__ = 'ratings'
-
-    id = Column(Integer, primary_key=True)
-    userid = Column(Integer)
-    movieid = Column(Integer, ForeignKey('movies.movieid'))
-    rating = Column(Float, nullable=False)
-    timestamp = Column(Integer)
-    bayesian_mean = Column(Float, nullable=False)
-
-class Link(Base):
-    __tablename__ = 'links'
-
-    id = Column(Integer, primary_key=True)
-    movieid = Column(Integer, ForeignKey('movies.movieid'))
-    imdbid = Column(Integer)
-    tmdbid = Column(Integer)
-
-class User(Base):
-    __tablename__ = 'users'
-
-    userid = Column(Integer, primary_key=True)
-    username = Column(String(50), nullable=False)
-    email = Column(String(100), unique=True, nullable=False)
-    hashed_password = Column(String(300), nullable=False)
-
-def create_tables(engine):
-    Base.metadata.create_all(engine)
-    print("Tables created")
+def create_tables(conn):
+    """Crée les tables dans la base de données."""
+    cursor = conn.cursor()
+    cursor.execute(sql_create_movies_table)
+    cursor.execute(sql_create_ratings_table)
+    cursor.execute(sql_create_links_table)
+    cursor.execute(sql_create_users_table)
+    conn.commit()
+    cursor.close()
+    print("Tables créées avec succès.")
 
 def main():
-    # Get PostgreSQL connection configuration
-    postgres_conn_conf = get_postgres_conn_conf()
-
-    # Create database URL
-    db_url = f"postgresql://{postgres_conn_conf['login']}:{postgres_conn_conf['password']}@" \
-             f"{postgres_conn_conf['host']}:{postgres_conn_conf['port']}/{postgres_conn_conf['schema']}"
-
-    # Create a new SQLAlchemy engine
-    engine = create_engine(db_url)
-
-    # Create a new session
-    Session = sessionmaker(bind=engine)
-
-    # Create tables in the database
-    create_tables(engine)
+    conn = create_connection()
+    if conn is not None:
+        create_tables(conn)
+        conn.close()
+    else:
+        print("Impossible de se connecter à la base de données.")
 
 if __name__ == "__main__":
     main()
+

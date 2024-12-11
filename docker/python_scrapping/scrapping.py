@@ -2,35 +2,27 @@ import os
 import time
 import requests
 from bs4 import BeautifulSoup as bs
-from sqlalchemy import create_engine, table, column, select, insert
+import psycopg2
+from psycopg2 import OperationalError
 
-# Définition des tables SQLAlchemy pour les opérations d'upsert
-table_movies = table('movies',
-    column('movieid'),
-    column('title'),
-    column('genres'),
-    column('year')
-)
-
-table_links = table('links',
-    column('id'),
-    column('movieid'),
-    column('imdbid'),
-    column('tmdbid')
-)
+def create_connection():
+    """Crée une connexion à la base de données PostgreSQL."""
+    try:
+        conn = psycopg2.connect(
+            database=os.getenv("DATABASE"),
+            host=os.getenv("AIRFLOW_POSTGRESQL_SERVICE_HOST"),
+            user=os.getenv("USER"),
+            password=os.getenv("PASSWORD"),
+            port=os.getenv("AIRFLOW_POSTGRESQL_SERVICE_PORT")
+        )
+        print("Connexion à la base de données réussie.")
+        return conn
+    except OperationalError as e:
+        print(f"Erreur lors de la connexion à la base de données: {e}")
+        return None
 
 # Récupération du token TMDB depuis les variables d'environnement
 tmdb_token = os.getenv("TMDB_TOKEN")
-
-def load_config():
-    """Charge la configuration de la base de données à partir des variables d'environnement."""
-    config = {
-        'host': os.getenv('AIRFLOW_POSTGRESQL_SERVICE_HOST'),
-        'database': os.getenv('DATABASE'),
-        'user': os.getenv('USER'),
-        'password': os.getenv('PASSWORD')
-    }
-    return config
 
 def scrape_imdb_first_page():
     """Scrape les données des films depuis IMDb et les renvoie sous forme de listes."""
@@ -117,68 +109,59 @@ def api_tmdb_request():
 
     return results
 
-def insert_data_movies():
-    """Insère les données des films dans la base de données en utilisant SQLAlchemy."""
-    start_time = time.time()
-
-    api_results = api_tmdb_request()
-
-    config = load_config()  # Charger la configuration de la base de données
-    conn_string = f"postgresql://{config['user']}:{config['password']}@{config['host']}/{config['database']}"
-
-    db = create_engine(conn_string)
-
+def insert_movies_and_links(scraped_data):
+    """Insère les films et les liens dans la base de données."""
+    conn = create_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT MAX(movieid) FROM movies")
+    max_movie_id = cursor.fetchone()[0]
     try:
-        with db.begin() as conn:
-            for index, movie_data in api_results.items():
-                if "error" in movie_data:  # Vérifier si une erreur a été retournée
-                    print(movie_data["error"])
-                    continue
+        for movie_key, movie_info in scraped_data.items():
+            if 'error' in movie_info:
+                print(f"Ignoré: {movie_info['error']}")
+                continue
 
-                title = movie_data["title"]
-                genres = movie_data["genres"]
-                imdb_id = movie_data["imbd_id"]
-                tmdb_id = movie_data["tmdb_id"]
-                year = movie_data["year"]
+            required_fields = ['title', 'year', 'genres', 'imbd_id', 'tmdb_id']
+            if not all(field in movie_info for field in required_fields):
+                print(f"Champs manquants pour l'entrée {movie_key}: {movie_info}")
+                continue
+            cursor.execute("SELECT MAX(movieid) FROM movies")
+            max_movie_id = cursor.fetchone()[0]
+            movieid = max_movie_id + 1
+            title = movie_info["title"]
+            year = int(movie_info["year"])
+            genres_str = ','.join(movie_info["genres"])
+            imdb_id = int(movie_info["imbd_id"])
+            tmdb_id = int(movie_info["tmdb_id"])
 
-                # Éviter les doublons dans la base de données
-                query = select([table_movies]).where(
-                    (table_movies.c.title == title) & (table_movies.c.year == year)
-                )
+            # Vérifier si le film existe déjà
+            cursor.execute("SELECT COUNT(*) FROM movies WHERE title = %s AND year = %s", (title, year))
+            exists = cursor.fetchone()[0] > 0
 
-                result = conn.execute(query).fetchone()
+            if exists:
+                print(f"Le film '{title}' de l'année {year} existe déjà. Ignorer l'insertion.")
+                continue
 
-                if result is None:  # Si le film n'existe pas déjà
-                    genres_str = ','.join(genres)  # Convertir la liste de genres en chaîne de caractères
+            # Insérer le nouveau film
+            cursor.execute(
+                "INSERT INTO movies (movieid, title, genres, year) VALUES (%s, %s, %s, %s)",
+                (movieid, title, genres_str, year)
+            )
 
-                    # Insertion du film
-                    insert_query = insert(table_movies).values(
-                        movieid=None,  # Laissez PostgreSQL gérer l'ID si c'est une séquence
-                        title=title,
-                        genres=genres_str,
-                        year=year
-                    )
-                    conn.execute(insert_query)
+            # Insérer les liens associés
+            cursor.execute(
+                "INSERT INTO links (movieid, imdbid, tmdbid) VALUES (%s, %s, %s)",
+                (movieid, imdb_id, tmdb_id)
+            )
 
-                    # Insertion du lien avec l'ID du film
-                    last_inserted_id_query = select([table_movies.c.movieid]).where(
-                        (table_movies.c.title == title) & (table_movies.c.year == year)
-                    )
-                    last_inserted_id = conn.execute(last_inserted_id_query).fetchone()[0]
-
-                    insert_link_query = insert(table_links).values(
-                        id=None,  # Laissez PostgreSQL gérer l'ID si c'est une séquence
-                        movieid=last_inserted_id,
-                        imdbid=imdb_id,
-                        tmdbid=tmdb_id
-                    )
-                    conn.execute(insert_link_query)
-
-                else:
-                    print(f"Le film {title} ({year}) existe déjà dans la base de données.")
-
+        conn.commit()  # Valider les modifications
     except Exception as e:
-        print(f"Erreur lors de l'insertion dans la base de données : {e}")
+        print(f"Erreur lors de l'insertion: {e}")
+    finally:
+        cursor.close()
+        conn.close()
 
 if __name__ == "__main__":
-    insert_data_movies()
+    results = api_tmdb_request()
+    print(results)
+    insert_movies_and_links(results)

@@ -47,9 +47,9 @@ spec:
           ports:
             - containerPort: 8000
           volumeMounts:
-            - name: model-storage
+            - name: models-storage-pvc
               mountPath: /models
       volumes:
-        - name: model-storage
+        - name: models-storage-pvc
           persistentVolumeClaim:
-            claimName: model-storage-pvc
+            claimName: models-storage-pvc

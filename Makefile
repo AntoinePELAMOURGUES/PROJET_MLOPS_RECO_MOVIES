@@ -45,11 +45,11 @@ start-airflow:
 	# Apply persistent volumes and claims for Airflow
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-dags-folder-pv.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-logs-folder-pv.yml
-	kubectl apply -f kubernetes/persistent-volumes/mlfow-storage-pv.yml
+	kubectl apply -f kubernetes/persistent-volumes/mlflow-storage-pv.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-raw-init-folder-pv.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-dags-folder-pvc.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-logs-folder-pvc.yml
-	kubectl apply -f kubernetes/persistent-volumes/mlfow-storage-pvc.yml
+	kubectl apply -f kubernetes/persistent-volumes/mlflow-storage-pvc.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-raw-init-folder-pvc.yml
 	kubectl apply -f kubernetes/secrets/airflow-secrets.yaml
 	kubectl apply -f kubernetes/secrets/mlflow-secrets.yaml
@@ -70,6 +70,7 @@ start-mlflow:
 # Deploy API services (FastAPI and Streamlit)
 start-api:
 	kubectl create namespace $(NAMESPACE1) || true # Avoid error if namespace already exists
+	kubectl apply -f kubernetes/persistent-volumes/models-storage-pvc.yml
 	kubectl apply -f kubernetes/deployments/fastapi-deployment.yml
 	kubectl apply -f kubernetes/deployments/streamlit-deployment.yml
 	kubectl apply -f kubernetes/secrets/api-secrets.yaml

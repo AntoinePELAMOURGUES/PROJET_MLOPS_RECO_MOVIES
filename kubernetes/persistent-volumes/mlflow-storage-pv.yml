@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: PersistentVolume
 metadata:
-  name: models-storage-pv
+  name: models-mlflow-pv
 spec:
   capacity:
     storage: 5Gi
@@ -9,6 +9,6 @@ spec:
     - ReadWriteOnce
   claimRef:
     namespace: airflow
-    name: models-storage-pvc
+    name: models-mlflow-pvc
   hostPath:
     path: "/host/data/models"
