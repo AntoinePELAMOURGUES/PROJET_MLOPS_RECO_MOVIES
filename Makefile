@@ -24,7 +24,7 @@ help:
 ###### MAKEFILE KUBERNETES ######
 
 # Start all services
-start-all: start-airflow start-mlflow start-api
+start-all: start-minikube start-airflow start-mlflow start-api
 
 # Start Minikube with specified resources
 start-minikube:
@@ -70,6 +70,7 @@ start-mlflow:
 # Deploy API services (FastAPI and Streamlit)
 start-api:
 	kubectl create namespace $(NAMESPACE1) || true # Avoid error if namespace already exists
+	kubectl apply -f kubernetes/persistent-volumes/models-storage-pv.yml
 	kubectl apply -f kubernetes/persistent-volumes/models-storage-pvc.yml
 	kubectl apply -f kubernetes/deployments/fastapi-deployment.yml
 	kubectl apply -f kubernetes/deployments/streamlit-deployment.yml
@@ -114,3 +115,10 @@ clean-kube-all: check-kube
 	kubectl delete namespace $(NAMESPACE1) || true
 	kubectl delete namespace $(NAMESPACE2) || true
 	kubectl delete namespace $(NAMESPACE3) || true
+
+start-service:
+	minikube service airflow-webserver -n airflow
+	minikube service mlflow -n mlflow
+	minikube service fastapi -n api
+	minikube service streamlit -n api
+	minikube service pgadmin -n airflow

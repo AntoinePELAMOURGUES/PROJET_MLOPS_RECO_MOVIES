@@ -18,6 +18,8 @@ spec:
           image: antoinepela/projet_reco_movies:fastapi-latest
           imagePullPolicy: Always # Force Kubernetes à toujours tirer l'image
           env:
+            - name: AIRFLOW_POSTGRESQL_SERVICE_HOST
+              value: "airflow-postgresql.airflow.svc.cluster.local"
             - name: DATABASE
               value: "postgres"
             - name: USER

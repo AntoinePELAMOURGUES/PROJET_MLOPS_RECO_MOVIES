@@ -153,7 +153,7 @@ def insert_movies_and_links(scraped_data):
                 "INSERT INTO links (movieid, imdbid, tmdbid) VALUES (%s, %s, %s)",
                 (movieid, imdb_id, tmdb_id)
             )
-
+            print(f"Film '{title} {year}' inséré avec succès.")
         conn.commit()  # Valider les modifications
     except Exception as e:
         print(f"Erreur lors de l'insertion: {e}")

@@ -83,7 +83,7 @@ def fetch_ratings() -> pd.DataFrame:
         try:
             with conn.cursor() as cur:
                 cur.execute(query)
-                df = pd.DataFrame(cur.fetchall(), columns=['userId', 'movieId', 'rating'])
+                df = pd.DataFrame(cur.fetchall(), columns=['userid', 'movieid', 'rating'])
                 print("Enregistrements table ratings récupérés")
                 return df
 
@@ -94,7 +94,7 @@ def fetch_ratings() -> pd.DataFrame:
 def fetch_movies() -> pd.DataFrame:
     """Récupère enregistrements de la table movies et les transforme en DataFrame."""
     query = """
-    SELECT movieId, title, genres
+    SELECT movieid, title, genres
     FROM movies
     """
     config = load_config()
@@ -104,7 +104,7 @@ def fetch_movies() -> pd.DataFrame:
         try:
             with conn.cursor() as cur:
                 cur.execute(query)
-                df = pd.DataFrame(cur.fetchall(), columns=['movieId', 'title', 'genres'])
+                df = pd.DataFrame(cur.fetchall(), columns=['movieid', 'title', 'genres'])
                 print("Enregistrements table movies récupérés")
                 return df
         except Exception as e:
@@ -114,7 +114,7 @@ def fetch_movies() -> pd.DataFrame:
 def fetch_links() -> pd.DataFrame:
     """Récupère enregistrements de la table movies et les transforme en DataFrame."""
     query = """
-    SELECT id, movieId, imdbId, tmdbId
+    SELECT id, movieid, imdbid, tmdbid
     FROM links
     """
     config = load_config()
@@ -124,7 +124,7 @@ def fetch_links() -> pd.DataFrame:
         try:
             with conn.cursor() as cur:
                 cur.execute(query)
-                df = pd.DataFrame(cur.fetchall(), columns=['id', 'movieId', 'imdbId', 'tmdbId'])
+                df = pd.DataFrame(cur.fetchall(), columns=['id', 'movieid', 'imdbid', 'tmdbid'])
                 print("Enregistrements table links récupérés")
                 return df
         except Exception as e:
@@ -159,17 +159,17 @@ def create_X(df):
         movie_mapper: dict that maps movie id's to movie indices
         movie_inv_mapper: dict that maps movie indices to movie id's
     """
-    M = df['userId'].nunique()
-    N = df['movieId'].nunique()
+    M = df['userid'].nunique()
+    N = df['movieid'].nunique()
 
-    user_mapper = dict(zip(np.unique(df["userId"]), list(range(M))))
-    movie_mapper = dict(zip(np.unique(df["movieId"]), list(range(N))))
+    user_mapper = dict(zip(np.unique(df["userid"]), list(range(M))))
+    movie_mapper = dict(zip(np.unique(df["movieid"]), list(range(N))))
 
-    user_inv_mapper = dict(zip(list(range(M)), np.unique(df["userId"])))
-    movie_inv_mapper = dict(zip(list(range(N)), np.unique(df["movieId"])))
+    user_inv_mapper = dict(zip(list(range(M)), np.unique(df["userid"])))
+    movie_inv_mapper = dict(zip(list(range(N)), np.unique(df["movieid"])))
 
-    user_index = [user_mapper[i] for i in df['userId']]
-    item_index = [movie_mapper[i] for i in df['movieId']]
+    user_index = [user_mapper[i] for i in df['userid']]
+    item_index = [movie_mapper[i] for i in df['movieid']]
 
     X = csr_matrix((df["rating"], (user_index,item_index)), shape=(M,N))
 
@@ -179,10 +179,10 @@ def create_X(df):
 def get_user_recommendations(user_id: int, model: SVD, ratings_df: pd.DataFrame, n_recommendations: int = 10):
     """Obtenir des recommandations pour un utilisateur donné."""
     # Créer un DataFrame contenant tous les films
-    all_movies = ratings_df['movieId'].unique()
+    all_movies = ratings_df['movieid'].unique()
 
     # Obtenir les films déjà évalués par l'utilisateur
-    rated_movies = ratings_df[ratings_df['userId'] == user_id]['movieId'].tolist()
+    rated_movies = ratings_df[ratings_df['userid'] == user_id]['movieid'].tolist()
 
     # Trouver les films non évalués par l'utilisateur
     unseen_movies = [movie for movie in all_movies if movie not in rated_movies]
@@ -342,13 +342,13 @@ model_Knn = load_model('model_KNN.pkl')
 # Création de la matrice utilisateur-article
 X, user_mapper, movie_mapper, user_inv_mapper, movie_inv_mapper = create_X(ratings)
 # Création d'un dataframe pour les liens entre les films et les ID IMDB
-movies_links_df = movies.merge(links, on = "movieId", how = 'left')
+movies_links_df = movies.merge(links, on = "movieid", how = 'left')
 # Création de dictionnaires pour faciliter l'accès aux titres et aux couvertures des films par leur ID
 movie_idx = dict(zip(movies['title'], list(movies.index)))
 # Création de dictionnaires pour accéder facilement aux titres et aux couvertures des films par leur ID
-movie_titles = dict(zip(movies['movieId'], movies['title']))
+movie_titles = dict(zip(movies['movieid'], movies['title']))
 # Créer un dictionnaire pour un accès rapide
-imdb_dict = dict(zip(movies_links_df['movieId'], movies_links_df['imdbId']))
+imdb_dict = dict(zip(movies_links_df['movieid'], movies_links_df['imdbid']))
 
 print("FIN DES CHARGEMENTS")
 # ---------------------------------------------------------------
@@ -387,10 +387,10 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
     try:
         # Forcer la conversion en int
         user_id = int(user_request.userId)
-        df_user = ratings[ratings['userId'] == user_id]
+        df_user = ratings[ratings['userid'] == user_id]
         df_user = df_user.sort_values(by='rating', ascending=False)
         best_movies = df_user.head(3)
-        imdb_list = [imdb_dict[movie_id] for movie_id in best_movies['movieId'] if movie_id in imdb_dict]
+        imdb_list = [imdb_dict[movie_id] for movie_id in best_movies['movieid'] if movie_id in imdb_dict]
         start_tmdb_time = time.time()
         results = api_tmdb_request(imdb_list)
         tmdb_duration = time.time() - start_tmdb_time
@@ -486,7 +486,7 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
     try:
         # Récupération des données Streamlit
         movie_title = movie_finder(user_request.movie_title)  # Trouver le titre du film correspondant
-        movie_id = int(movies['movieId'][movies['title'] == movie_title].iloc[0])
+        movie_id = int(movies['movieid'][movies['title'] == movie_title].iloc[0])
         # Récupérer les ID des films recommandés en utilisant la fonction de similarité
         recommendations = get_movie_title_recommendations(model_Knn, movie_id, X, movie_mapper, movie_inv_mapper, 9)
         imdb_list = [imdb_dict[movie_id] for movie_id in recommendations if movie_id in imdb_dict]
