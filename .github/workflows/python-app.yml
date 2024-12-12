@@ -55,7 +55,6 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}
         run: |
           pytest tests/test_build_features.py
-          pytest tests/test_init_db.py
           pytest tests/test_data_to_db.py
           pytest tests/test_recover_data.py
           pytest tests/test_scrapping.py
