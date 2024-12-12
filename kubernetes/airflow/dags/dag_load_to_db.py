@@ -7,8 +7,8 @@ from kubernetes.client import models as k8s
 # Définition du secret pour la connexion à la base de données
 secret_password = Secret(
     deploy_type="env",
-    deploy_target="PASSWORD",
-    secret="sql-conn"
+    deploy_target="POSTGRES_PASSWORD",
+    secret="my-api-postgres-secrets"
 )
 
 # Définition du DAG
@@ -29,8 +29,9 @@ with DAG(
         cmds=["python3", "init_db.py"],
         namespace="airflow",
         env_vars={
-            'DATABASE': 'postgres',
-            'USER': 'postgres',
+            'POSTGRES_HOST': "my-api-postgres.airflow.svc.cluster.local",
+            'POSTGRES_DB': 'my-api-database',
+            'POSTGRES_USER': 'antoine',
         },
         secrets=[secret_password],
         is_delete_operator_pod=True,  # Supprimez le pod après exécution
@@ -101,8 +102,9 @@ with DAG(
         cmds=["python3", "data_to_db.py"],
         namespace="airflow",
         env_vars={
-            'DATABASE': 'postgres',
-            'USER': 'postgres',
+            'POSTGRES_HOST': "my-api-postgres.airflow.svc.cluster.local",
+            'POSTGRES_DB': 'my-api-database',
+            'POSTGRES_USER': 'antoine',
         },
         secrets=[secret_password],
         volumes=[

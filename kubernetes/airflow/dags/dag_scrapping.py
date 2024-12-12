@@ -7,8 +7,8 @@ from airflow.kubernetes.secret import Secret
 # Définition des secrets
 secret_password = Secret(
     deploy_type="env",
-    deploy_target="PASSWORD",
-    secret="sql-conn"
+    deploy_target="POSTGRES_PASSWORD",
+    secret="my-api-postgres-secrets"
 )
 
 secret_token = Secret(
@@ -40,8 +40,9 @@ with DAG(
         cmds=["python3", "scrapping.py"],
         namespace="airflow",
         env_vars={
-            'DATABASE': 'postgres',
-            'USER': 'postgres',
+            'POSTGRES_HOST': "my-api-postgres.airflow.svc.cluster.local",
+            'POSTGRES_DB': 'my-api-database',
+            'POSTGRES_USER': 'antoine',
         },
         secrets=[secret_password, secret_token],  # Ajout des deux secrets
         is_delete_operator_pod=True,  # Supprimez le pod après exécution

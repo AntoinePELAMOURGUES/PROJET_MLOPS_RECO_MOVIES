@@ -6,6 +6,7 @@ from sqlalchemy.dialects.postgresql import insert
 
 # Définition des tables SQLAlchemy pour les opérations d'upsert
 table_movies = table('movies',
+    column('id'),
     column('movieid'),
     column('title'),
     column('genres'),
@@ -38,12 +39,11 @@ table_users = table('users',
 def load_config():
     """Charge la configuration de la base de données à partir des variables d'environnement."""
     return {
-        'host': os.getenv('AIRFLOW_POSTGRESQL_SERVICE_HOST'),
-        'database': os.getenv('DATABASE'),
-        'user': os.getenv('USER'),
-        'password': os.getenv('PASSWORD')
+        'host': os.getenv('POSTGRES_HOST'),
+        'database': os.getenv('POSTGRES_DB'),
+        'user': os.getenv('POSTGRES_USER'),
+        'password': os.getenv('POSTGRES_PASSWORD')
     }
-
 
 def connect(config):
     """Connecte au serveur PostgreSQL et retourne la connexion."""

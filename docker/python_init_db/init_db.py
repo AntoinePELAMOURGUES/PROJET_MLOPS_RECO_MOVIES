@@ -1,27 +1,31 @@
 import os
 import psycopg2
-from psycopg2 import OperationalError
 
-def create_connection():
-    """Crée une connexion à la base de données PostgreSQL."""
+
+def load_config():
+    """Charge la configuration de la base de données à partir des variables d'environnement."""
+    return {
+        'host': os.getenv('POSTGRES_HOST'),
+        'database': os.getenv('POSTGRES_DB'),
+        'user': os.getenv('POSTGRES_USER'),
+        'password': os.getenv('POSTGRES_PASSWORD')
+    }
+
+def connect(config):
+    """Connecte au serveur PostgreSQL et retourne la connexion."""
     try:
-        conn = psycopg2.connect(
-            database=os.getenv("DATABASE"),
-            host=os.getenv("AIRFLOW_POSTGRESQL_SERVICE_HOST"),
-            user=os.getenv("USER"),
-            password=os.getenv("PASSWORD"),
-            port=os.getenv("AIRFLOW_POSTGRESQL_SERVICE_PORT")
-        )
-        print("Connexion à la base de données réussie.")
+        conn = psycopg2.connect(**config)
+        print('Connected to the PostgreSQL server.')
         return conn
-    except OperationalError as e:
-        print(f"Erreur lors de la connexion à la base de données: {e}")
+    except (psycopg2.DatabaseError, Exception) as error:
+        print(f"Connection error: {error}")
         return None
 
 
 sql_create_movies_table = """
 CREATE TABLE IF NOT EXISTS movies (
-    movieid SERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
+    movieid INTEGER UNIQUE NOT NULL,
     title VARCHAR(200) NOT NULL,
     genres VARCHAR,
     year INTEGER
@@ -65,7 +69,8 @@ def create_tables(conn):
     print("Tables créées avec succès.")
 
 def main():
-    conn = create_connection()
+    config = load_config()
+    conn = connect(config)
     if conn is not None:
         create_tables(conn)
         conn.close()

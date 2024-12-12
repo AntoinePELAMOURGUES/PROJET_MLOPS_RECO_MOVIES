@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-api-postgres
+  namespace: airflow
+spec:
+  type: NodePort
+  ports:
+    - port: 5432 # Port sur lequel le service sera accessible.
+      targetPort: 5432 # Port du conteneur PostgreSQL.
+      protocol: TCP
+      nodePort: 30000 # Optionnel : spécifiez un port externe si vous utilisez NodePort.
+  selector:
+    app: my-api-postgres

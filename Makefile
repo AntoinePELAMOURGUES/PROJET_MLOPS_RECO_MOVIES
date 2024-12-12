@@ -43,18 +43,21 @@ start-airflow:
 	helm upgrade --install airflow apache-airflow/airflow --namespace $(NAMESPACE2) --create-namespace -f kubernetes/airflow/my_airflow_values.yml
 
 	# Apply persistent volumes and claims for Airflow
+	kubectl apply -f kubernetes/persistent-volumes/my-api-postgres-pv.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-dags-folder-pv.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-logs-folder-pv.yml
 	kubectl apply -f kubernetes/persistent-volumes/mlflow-storage-pv.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-raw-init-folder-pv.yml
+	kubectl apply -f kubernetes/persistent-volumes/my-api-postgres-pvc.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-dags-folder-pvc.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-logs-folder-pvc.yml
 	kubectl apply -f kubernetes/persistent-volumes/mlflow-storage-pvc.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-raw-init-folder-pvc.yml
+	kubectl apply -f kubernetes/secrets/my-api-postgres-secrets.yml
 	kubectl apply -f kubernetes/secrets/airflow-secrets.yaml
 	kubectl apply -f kubernetes/secrets/mlflow-secrets.yaml
 	kubectl apply -f kubernetes/configmaps/airflow-configmaps.yml
-	# Deploy pgAdmin service for managing PostgreSQL databases
+	kubectl apply -f kubernetes/deployments/my-api-postgres-deployment.yml
 	kubectl apply -f kubernetes/deployments/pgadmin-deployment.yml
 	kubectl apply -f kubernetes/services/pgadmin-service.yml
 
@@ -63,18 +66,25 @@ start-mlflow:
 	helm repo add bitnami https://charts.bitnami.com/bitnami
 	helm repo update
 	helm install mlf-ts bitnami/mlflow --namespace $(NAMESPACE3) --create-namespace
-
 	kubectl apply -f kubernetes/services/mlflow-service.yml
-
 
 # Deploy API services (FastAPI and Streamlit)
 start-api:
 	kubectl create namespace $(NAMESPACE1) || true # Avoid error if namespace already exists
 	kubectl apply -f kubernetes/persistent-volumes/models-storage-pv.yml
+	kubectl apply -f kubernetes/persistent-volumes/grafana-pv.yml
+	kubectl apply -f kubernetes/persistent-volumes/prometheus-pv.yml
 	kubectl apply -f kubernetes/persistent-volumes/models-storage-pvc.yml
+	kubectl apply -f kubernetes/persistent-volumes/grafana-pvc.yml
+	kubectl apply -f kubernetes/persistent-volumes/prometheus-pvc.yml
+	kubectl apply -f kubernetes/secrets/api-secrets.yaml
+	kubectl apply -f kubernetes/configmaps/prometheus-configmaps.yml
+	kubectl apply -f kubernetes/configmaps/grafana-configmaps.yml
 	kubectl apply -f kubernetes/deployments/fastapi-deployment.yml
 	kubectl apply -f kubernetes/deployments/streamlit-deployment.yml
-	kubectl apply -f kubernetes/secrets/api-secrets.yaml
+	kubectl apply -f kubernetes/deployments/prometheus-deployment.yml
+	kubectl apply -f kubernetes/deployments/grafana-deployment.yml
+	kubectl apply -f kubernetes/deployments/node-exporter-deployment.yml
 	kubectl apply -f kubernetes/services/api-service.yml
 
 # Delete persistent volumes for Airflow (if they exist)

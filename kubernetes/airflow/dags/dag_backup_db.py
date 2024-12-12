@@ -11,40 +11,37 @@ secret_password = Secret(
 )
 
 with DAG(
-  dag_id='first_train_models',
+  dag_id='backup_database',
   tags=['antoine'],
   default_args={
     'owner': 'airflow',
     'start_date': days_ago(0, minute=1),
     },
-  schedule_interval=None,  # Pas de planification automatique
+  schedule_interval='0 0 * * 1',  # Exécution tous les lundis à 00:00
   catchup=False
 ) as dag:
 
-    python_transform = KubernetesPodOperator(
-    task_id="train_models",
-    image="antoinepela/projet_reco_movies:train_models-latest",
-    cmds=["python3", "train_models.py"],
+    backup_db = KubernetesPodOperator(
+    task_id="backup_database",
+    image="antoinepela/projet_reco_movies:python-backup-db-latest",
+    cmds=["python3", "backup_db.py"],
     namespace= "airflow",
     env_vars={
             'POSTGRES_HOST': "my-api-postgres.airflow.svc.cluster.local",
             'POSTGRES_DB': 'my-api-database',
             'POSTGRES_USER': 'antoine',
-            'MLFLOW_TRACKING_URI': 'http://mlf-ts-mlflow-tracking.mlflow.svc.cluster.local',
-            'MLFLOW_TRACKING_USERNAME': 'user',
-            'MLFLOW_TRACKING_PASSWORD': 'Nds70uprI3',
         },
     secrets= [secret_password],
     volumes=[
         k8s.V1Volume(
-            name="models-storage-pv",
-            persistent_volume_claim=k8s.V1PersistentVolumeClaimVolumeSource(claim_name="models-storage-pvc")
+            name="my-api-postgres-pv",
+            persistent_volume_claim=k8s.V1PersistentVolumeClaimVolumeSource(claim_name="my-api-postgres-pvc")
         )
     ],
     volume_mounts=[
         k8s.V1VolumeMount(
-            name="models-storage-pv",
-            mount_path="/root/mount_file"
+            name="my-api-postgres-pv",
+            mount_path="/root/mount_file/"
         )
     ],  # Chemin où les modèles seront sauvegardés.
     is_delete_operator_pod=True,  # Supprimez le pod après exécution
@@ -53,4 +50,4 @@ with DAG(
 )
 
 
-python_transform
+backup_db

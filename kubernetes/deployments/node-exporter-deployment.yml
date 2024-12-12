@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: node-exporter
-  namespace: reco-movies
+  namespace: api
 spec:
   replicas: 1
   selector:

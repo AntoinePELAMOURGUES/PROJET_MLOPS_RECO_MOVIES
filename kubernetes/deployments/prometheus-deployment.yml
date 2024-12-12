@@ -3,7 +3,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: prometheus
-  namespace: reco-movies
+  namespace: api
 spec:
   replicas: 1
   selector:
@@ -23,14 +23,9 @@ spec:
             - configMapRef:
                 name: prometheus-config
           volumeMounts:
-            - name: prometheus-yml
-              mountPath: /etc/prometheus/prometheus.yml
-            - name: prometheus-logs
+            - name: prometheus-pv
               mountPath: /var/log/prometheus # Répertoire pour les logs.
       volumes:
-        - name: prometheus-yml
-          hostPath:
-            path: /prometheus.yml
-        - name: prometheus-logs
+        - name: prometheus-pv
           persistentVolumeClaim:
-            claimName: prometheus-logs
+            claimName: prometheus-pvc

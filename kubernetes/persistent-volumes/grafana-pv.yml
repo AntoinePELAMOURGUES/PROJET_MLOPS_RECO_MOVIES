@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: grafana-pv
+  namespace: api
+spec:
+  capacity:
+    storage: 1Gi # Taille du volume
+  accessModes:
+    - ReadWriteOnce # Mode d'accès
+  claimRef:
+    namespace: api
+    name: grafana-pvc
+  hostPath:
+    path: "/host/kubernetes/grafana/" # Chemin sur l'hôte

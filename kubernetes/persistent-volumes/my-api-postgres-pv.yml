@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: my-api-postgres-pv
+spec:
+  storageClassName: local-path
+  capacity:
+    storage: 4Gi
+  accessModes:
+    - ReadWriteOnce
+  claimRef:
+    namespace: airflow
+    name: my-api-postgres-pvc
+  hostPath:
+    path: "/host/data/backup_db/"

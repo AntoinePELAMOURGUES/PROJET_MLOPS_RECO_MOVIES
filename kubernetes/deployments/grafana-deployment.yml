@@ -1,9 +1,8 @@
-# Déploiement Grafana
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: grafana
-  namespace: reco-movies
+  namespace: api
 spec:
   replicas: 1
   selector:
@@ -16,13 +15,16 @@ spec:
     spec:
       containers:
         - name: grafana
-          image: antoinepela/projet_reco_movies:grafana-latest
+          image: grafana/grafana:latest # Utilisez l'image officielle de Grafana.
           ports:
             - containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: grafana-datasources # Référence au ConfigMap créé ci-dessus.
           volumeMounts:
-            - name: grafana-logs
-              mountPath: /var/lib/grafana
+            - name: grafana-storage
+              mountPath: /var/lib/grafana # Pour persister les données.
       volumes:
-        - name: grafana-logs
+        - name: grafana-storage
           persistentVolumeClaim:
-            claimName: grafana-logs
+            claimName: grafana-pvc # Assurez-vous que ce PVC existe.

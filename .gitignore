@@ -1,7 +1,7 @@
 *.csv
 *.pkl
 ./kubernetes/airflow/logs/
-
+./prometheus/logs/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
