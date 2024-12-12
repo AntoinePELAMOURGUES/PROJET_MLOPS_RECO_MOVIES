@@ -29,7 +29,7 @@ with DAG(
         cmds=["python3", "init_db.py"],
         namespace="airflow",
         env_vars={
-            'POSTGRES_HOST': "my-api-postgres.airflow.svc.cluster.local",
+            'POSTGRES_HOST': "my-api-postgres",
             'POSTGRES_DB': 'my-api-database',
             'POSTGRES_USER': 'antoine',
         },
@@ -102,7 +102,7 @@ with DAG(
         cmds=["python3", "data_to_db.py"],
         namespace="airflow",
         env_vars={
-            'POSTGRES_HOST': "my-api-postgres.airflow.svc.cluster.local",
+            'POSTGRES_HOST': "my-api-postgres",
             'POSTGRES_DB': 'my-api-database',
             'POSTGRES_USER': 'antoine',
         },

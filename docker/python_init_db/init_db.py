@@ -60,18 +60,24 @@ CREATE TABLE IF NOT EXISTS users (
 def create_tables(conn):
     """Crée les tables dans la base de données."""
     cursor = conn.cursor()
-    cursor.execute(sql_create_movies_table)
-    cursor.execute(sql_create_ratings_table)
-    cursor.execute(sql_create_links_table)
-    cursor.execute(sql_create_users_table)
-    conn.commit()
-    cursor.close()
-    print("Tables créées avec succès.")
+    try:
+        cursor.execute(sql_create_movies_table)
+        cursor.execute(sql_create_ratings_table)
+        cursor.execute(sql_create_links_table)
+        cursor.execute(sql_create_users_table)
+        conn.commit()
+        print("Tables créées avec succès.")
+    except Exception as e:
+        print(f"Erreur lors de la création des tables: {e}")
+    finally:
+        cursor.close()
 
 def main():
+    print("Initialisation de la base de données...")
     config = load_config()
     conn = connect(config)
     if conn is not None:
+        print("Connexion réussie à la base de données.")
         create_tables(conn)
         conn.close()
     else:

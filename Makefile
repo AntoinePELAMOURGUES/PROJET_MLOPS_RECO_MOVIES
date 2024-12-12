@@ -59,6 +59,7 @@ start-airflow:
 	kubectl apply -f kubernetes/configmaps/airflow-configmaps.yml
 	kubectl apply -f kubernetes/deployments/my-api-postgres-deployment.yml
 	kubectl apply -f kubernetes/deployments/pgadmin-deployment.yml
+	kubectl apply -f kubernetes/services/my-api-postgres-service.yml
 	kubectl apply -f kubernetes/services/pgadmin-service.yml
 
 # Deploy MLflow using Helm

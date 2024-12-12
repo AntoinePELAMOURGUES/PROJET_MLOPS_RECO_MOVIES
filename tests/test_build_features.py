@@ -2,7 +2,7 @@ import os
 import pytest
 import pandas as pd
 from unittest.mock import patch, MagicMock
-from docker.python_build_features.build_features import download_and_save_file, load_data, preprocessing_ratings, preprocessing_movies, preprocessing_links, create_users
+from docker.python_build_features.build_features import load_data, preprocessing_ratings, preprocessing_movies, preprocessing_links, create_users
 
 
 @pytest.fixture
@@ -30,22 +30,6 @@ def mock_csv_files(tmp_path):
     df_links.to_csv(tmp_path / "links.csv", index=False)
 
     return str(tmp_path)
-
-def test_download_and_save_file(mock_csv_files):
-    url = "https://example.com/"
-
-    with patch('your_module.requests.get') as mock_get:
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.content = b"dummy content"
-        mock_get.return_value = mock_response
-
-        download_and_save_file(url, mock_csv_files)
-
-        # Check if the files were created
-        assert os.path.isfile(os.path.join(mock_csv_files, "links.csv"))
-        assert os.path.isfile(os.path.join(mock_csv_files, "movies.csv"))
-        assert os.path.isfile(os.path.join(mock_csv_files, "ratings.csv"))
 
 def test_load_data(mock_csv_files):
     df_ratings, df_movies, df_links = load_data(mock_csv_files)

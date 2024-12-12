@@ -20,7 +20,7 @@ spec:
             - containerPort: 5432 # Port par défaut de PostgreSQL.
           env:
             - name: POSTGRES_HOST
-              value: "my-api-postgres.airflow.svc.cluster.local"
+              value: "my-api-postgres"
             - name: POSTGRES_DB # Nom de la base de données à créer.
               value: "my-api-database"
             - name: POSTGRES_USER # Nom d'utilisateur pour PostgreSQL.
@@ -30,10 +30,3 @@ spec:
                 secretKeyRef:
                   name: my-api-postgres-secret # Référence à un secret pour le mot de passe.
                   key: POSTGRES_PASSWORD
-          volumeMounts:
-            - name: postgres-storage
-              mountPath: /var/lib/postgresql/data # Chemin où PostgreSQL stocke ses données.
-      volumes:
-        - name: postgres-storage
-          persistentVolumeClaim:
-            claimName: my-api-postgres-pvc # Référence au PVC créé précédemment.
