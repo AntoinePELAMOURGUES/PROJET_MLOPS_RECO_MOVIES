@@ -41,7 +41,7 @@ with DAG(
     volume_mounts=[
         k8s.V1VolumeMount(
             name="my-api-postgres-pv",
-            mount_path="/root/mount_file/"
+            mount_path="/root/mount_file/backup_db"
         )
     ],  # Chemin où les modèles seront sauvegardés.
     is_delete_operator_pod=True,  # Supprimez le pod après exécution

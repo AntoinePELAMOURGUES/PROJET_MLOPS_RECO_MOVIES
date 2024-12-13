@@ -30,3 +30,10 @@ spec:
                 secretKeyRef:
                   name: my-api-postgres-secret # Référence à un secret pour le mot de passe.
                   key: POSTGRES_PASSWORD
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data # Chemin où PostgreSQL stocke ses données.
+      volumes:
+        - name: postgres-storage
+          persistentVolumeClaim:
+            claimName: my-api-postgres-pvc

@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS users (
     userid SERIAL PRIMARY KEY,
     username VARCHAR(50) NOT NULL,
     email VARCHAR(100) UNIQUE NOT NULL,
-    hashed_password VARCHAR(300) NOT NULL
+    hached_password VARCHAR(300) NOT NULL
 );"""
 
 def create_tables(conn):
