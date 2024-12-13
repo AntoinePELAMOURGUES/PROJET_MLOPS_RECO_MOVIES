@@ -30,14 +30,6 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/projet_reco_movies:python-init-db-latest
 
-      - name: Build and push backup_db image
-        uses: docker/build-push-action@v2
-        with:
-          context: ./docker/python_backup_db
-          file: ./docker/python_backup_db/Dockerfile
-          push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/projet_reco_movies:python-backup-db-latest
-
       - name: Build and push build_features image
         uses: docker/build-push-action@v2
         with:

@@ -46,13 +46,13 @@ start-airflow:
 	kubectl apply -f kubernetes/persistent-volumes/my-api-postgres-pv.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-dags-folder-pv.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-logs-folder-pv.yml
-	kubectl apply -f kubernetes/persistent-volumes/mlflow-storage-pv.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-raw-init-folder-pv.yml
+	kubectl apply -f kubernetes/persistent-volumes/my-db-backup-pv.yml
 	kubectl apply -f kubernetes/persistent-volumes/my-api-postgres-pvc.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-dags-folder-pvc.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-logs-folder-pvc.yml
-	kubectl apply -f kubernetes/persistent-volumes/mlflow-storage-pvc.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-raw-init-folder-pvc.yml
+	kubectl apply -f kubernetes/persistent-volumes/my-db-backup-pvc.yml
 	kubectl apply -f kubernetes/secrets/my-api-postgres-secrets.yml
 	kubectl apply -f kubernetes/secrets/airflow-secrets.yaml
 	kubectl apply -f kubernetes/secrets/mlflow-secrets.yaml
@@ -67,6 +67,9 @@ start-mlflow:
 	helm repo add bitnami https://charts.bitnami.com/bitnami
 	helm repo update
 	helm install mlf-ts bitnami/mlflow --namespace $(NAMESPACE3) --create-namespace
+	kubectl apply -f kubernetes/persistent-volumes/mlflow-storage-pv.yml
+	kubectl apply -f kubernetes/persistent-volumes/mlflow-storage-pvc.yml
+
 	kubectl apply -f kubernetes/services/mlflow-service.yml
 
 # Deploy API services (FastAPI and Streamlit)

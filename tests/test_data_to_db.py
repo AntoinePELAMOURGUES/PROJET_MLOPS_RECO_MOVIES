@@ -20,7 +20,7 @@ def config():
     }
 
 def test_load_config(monkeypatch):
-    monkeypatch.setenv('AIRFLOW_POSTGRESQL_SERVICE_HOST', 'localhost')
+    monkeypatch.setenv('POSTGRES_HOST', 'localhost')
     monkeypatch.setenv('DATABASE', 'test_db')
     monkeypatch.setenv('USER', 'test_user')
     monkeypatch.setenv('PASSWORD', 'test_password')

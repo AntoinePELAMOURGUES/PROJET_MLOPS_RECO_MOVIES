@@ -1,0 +1,39 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: my-api-postgres-backup
+  namespace: airflow # Assurez-vous que le namespace est correct.
+spec:
+  schedule: "0 0 * * *" # Exécute tous les jours à minuit
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: postgres-backup
+              image: postgres:latest # Utilisez l'image officielle de PostgreSQL.
+              env:
+                - name: POSTGRES_HOST
+                  value: "my-api-postgres"
+                - name: POSTGRES_DB
+                  value: "my-api-database"
+                - name: POSTGRES_USER
+                  value: "antoine"
+                - name: POSTGRES_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: my-api-postgres-secrets
+                      key: POSTGRES_PASSWORD
+              command:
+                - /bin/sh
+                - -c
+                - |
+                  pg_dump -U $POSTGRES_USER -d $POSTGRES_DB > /backup/my_api_database_backup_$(date +\%Y-\%m-\%d).sql
+              volumeMounts:
+                - name: my-db-backup
+                  mountPath: /backup # Chemin où les backups seront stockés.
+          restartPolicy: OnFailure # Redémarre le job en cas d'échec.
+          volumes:
+            - name: my-db-backup
+              persistentVolumeClaim:
+                claimName: my-db-backup # PVC pour stocker les backups.

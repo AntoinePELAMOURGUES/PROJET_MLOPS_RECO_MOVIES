@@ -11,14 +11,14 @@ secret_password = Secret(
 )
 
 with DAG(
-  dag_id='first_train_models',
-  tags=['antoine'],
-  default_args={
-    'owner': 'airflow',
-    'start_date': days_ago(0, minute=1),
-    },
-  schedule_interval=None,  # Pas de planification automatique
-  catchup=False
+    dag_id='first_train_models',
+    tags=['antoine'],
+    default_args={
+        'owner': 'airflow',
+        'start_date': days_ago(0, minute=1),
+        },
+    schedule_interval=None,  # Pas de planification automatique
+    catchup=False
 ) as dag:
 
     python_transform = KubernetesPodOperator(
@@ -32,22 +32,22 @@ with DAG(
             'POSTGRES_USER': 'antoine',
             'MLFLOW_TRACKING_URI': 'http://mlf-ts-mlflow-tracking.mlflow.svc.cluster.local',
             'MLFLOW_TRACKING_USERNAME': 'user',
-            'MLFLOW_TRACKING_PASSWORD': 'Nds70uprI3',
+            'MLFLOW_TRACKING_PASSWORD': 'diu1eQUTZX',  # Récupérer le mot de passe
         },
     secrets= [secret_password],
     volumes=[
         k8s.V1Volume(
-            name="models-storage-pv",
-            persistent_volume_claim=k8s.V1PersistentVolumeClaimVolumeSource(claim_name="models-storage-pvc")
+            name="models-mlflow-pv",
+            persistent_volume_claim=k8s.V1PersistentVolumeClaimVolumeSource(claim_name="models-mlflow-pvc")
         )
     ],
     volume_mounts=[
         k8s.V1VolumeMount(
-            name="models-storage-pv",
+            name="models-mlflow-pv",
             mount_path="/root/mount_file"
         )
     ],  # Chemin où les modèles seront sauvegardés.
-    is_delete_operator_pod=True,  # Supprimez le pod après exécution
+    is_delete_operator_pod=False,  # Supprimez le pod après exécution
     get_logs=True,          # Récupérer les logs du pod
     image_pull_policy='Always',  # Forcer le rechargement de l'image
 )

@@ -17,22 +17,22 @@ spec:
         - name: postgres
           image: postgres:latest # Utilisez l'image officielle de PostgreSQL.
           ports:
-            - containerPort: 5432 # Port par défaut de PostgreSQL.
+            - containerPort: 5432
           env:
             - name: POSTGRES_HOST
               value: "my-api-postgres"
-            - name: POSTGRES_DB # Nom de la base de données à créer.
+            - name: POSTGRES_DB
               value: "my-api-database"
-            - name: POSTGRES_USER # Nom d'utilisateur pour PostgreSQL.
+            - name: POSTGRES_USER
               value: "antoine"
-            - name: POSTGRES_PASSWORD # Mot de passe pour l'utilisateur.
+            - name: POSTGRES_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: my-api-postgres-secrets # Référence à un secret pour le mot de passe.
+                  name: my-api-postgres-secrets
                   key: POSTGRES_PASSWORD
           volumeMounts:
             - name: my-api-postgres-storage
-              mountPath: /var/lib/postgresql/data # Chemin où PostgreSQL stocke ses données
+              mountPath: /var/lib/postgresql/data
       volumes:
         - name: my-api-postgres-storage
           persistentVolumeClaim:
