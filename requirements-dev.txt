@@ -1,6 +1,0 @@
--r ml/src/requirements.txt
--r api/requirements.txt
--r streamlit/requirements.txt
--r airflow/requirements.txt
--r tests/requirements-test.txt
-

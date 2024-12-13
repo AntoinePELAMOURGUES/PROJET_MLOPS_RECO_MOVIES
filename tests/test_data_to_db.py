@@ -51,7 +51,7 @@ def test_upsert_to_psql(config):
     df = pd.DataFrame({'id': [1, 2], 'name': ['Alice', 'Bob']})
     with patch('docker.python_load_data.data_to_db.execute_query_psql') as mock_execute_query_psql:
         mock_execute_query_psql.return_value = 2
-        upsert_to_psql(test_table, df)
+        upsert_to_psql(test_table, df, config)
         assert mock_execute_query_psql.called
         assert mock_execute_query_psql.call_args[0][0].table.name == 'test_table'
         assert mock_execute_query_psql.call_args[0][1] == config

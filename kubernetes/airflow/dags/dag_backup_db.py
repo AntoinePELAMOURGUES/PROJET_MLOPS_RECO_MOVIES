@@ -32,18 +32,19 @@ with DAG(
             'POSTGRES_USER': 'antoine',
         },
     secrets= [secret_password],
-    volumes=[
-        k8s.V1Volume(
-            name="my-api-postgres-pv",
-            persistent_volume_claim=k8s.V1PersistentVolumeClaimVolumeSource(claim_name="my-api-postgres-pvc")
-        )
-    ],
     volume_mounts=[
         k8s.V1VolumeMount(
-            name="my-api-postgres-pv",
-            mount_path="/root/mount_file/backup_db"
+            name="my-db-backup",
+            mount_path="/root/mount_file/",
         )
-    ],  # Chemin où les modèles seront sauvegardés.
+    ],
+    volumes=[
+        k8s.V1Volume(
+            name="my-db-backup",
+            persistent_volume_claim=k8s.V1PersistentVolumeClaimVolumeSource(claim_name="my-db-backup")
+        )
+    ],
+      # Chemin où les modèles seront sauvegardés.
     is_delete_operator_pod=True,  # Supprimez le pod après exécution
     get_logs=True,          # Récupérer les logs du pod
     image_pull_policy='Always',  # Forcer le rechargement de l'image

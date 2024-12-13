@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: prometheus
-          image: antoinepela/projet_reco_movies:prometheus-latest
+          image: bitnami/prometheus:latest
           ports:
             - containerPort: 9090
           envFrom:
