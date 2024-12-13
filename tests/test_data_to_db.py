@@ -1,4 +1,3 @@
-
 import pytest
 import pandas as pd
 from unittest.mock import patch, MagicMock
@@ -41,8 +40,8 @@ def test_connect(config):
 def test_execute_query_psql(config):
     query = "SELECT 1"
     with patch('sqlalchemy.create_engine') as mock_create_engine:
-        mock_conn = MagicMock()
-        mock_create_engine.return_value.begin.return_value.__enter__.return_value = mock_conn
+        mock_engine = mock_create_engine.return_value
+        mock_conn = mock_engine.connect.return_value.__enter__.return_value
         mock_conn.execute.return_value.rowcount = 1
         rowcount = execute_query_psql(query, config)
         assert rowcount == 1
@@ -50,7 +49,7 @@ def test_execute_query_psql(config):
 
 def test_upsert_to_psql(config):
     df = pd.DataFrame({'id': [1, 2], 'name': ['Alice', 'Bob']})
-    with patch('data_to_db.execute_query_psql') as mock_execute_query_psql:
+    with patch('docker.python_load_data.data_to_db.execute_query_psql') as mock_execute_query_psql:
         mock_execute_query_psql.return_value = 2
         upsert_to_psql(test_table, df)
         assert mock_execute_query_psql.called
