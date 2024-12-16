@@ -19,11 +19,11 @@ spec:
           imagePullPolicy: Always # Force Kubernetes à toujours tirer l'image
           env:
             - name: POSTGRES_HOST
-              value: "my-api-postgres.airflow.svc.cluster.local"
+              value: "airflow-postgresql.airflow.svc.cluster.local"
             - name: POSTGRES_DB # Nom de la base de données à créer.
-              value: "my-api-database"
+              value: "postgres"
             - name: POSTGRES_USER # Nom d'utilisateur pour PostgreSQL.
-              value: "antoine"
+              value: "postgres"
             - name: POSTGRES_PASSWORD # Mot de passe pour l'utilisateur.
               valueFrom:
                 secretKeyRef:

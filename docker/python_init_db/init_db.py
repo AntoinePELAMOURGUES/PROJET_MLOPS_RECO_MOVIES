@@ -1,7 +1,6 @@
 import os
 import psycopg2
 
-
 def load_config():
     """Charge la configuration de la base de données à partir des variables d'environnement."""
     return {
@@ -66,23 +65,31 @@ def create_tables(conn):
         cursor.execute(sql_create_links_table)
         cursor.execute(sql_create_users_table)
         conn.commit()
-        print("Tables créées avec succès.")
+        print("Tables created successfully.")
     except Exception as e:
-        print(f"Erreur lors de la création des tables: {e}")
+        print(f"Error creating tables: {e}")
     finally:
         cursor.close()
 
 def main():
-    print("Initialisation de la base de données...")
+    print("Initializing the database...")
+
+    # Charger la configuration pour se connecter à PostgreSQL par défaut
     config = load_config()
+
+    # Connexion à PostgreSQL pour créer la nouvelle base de données
     conn = connect(config)
+
     if conn is not None:
-        print("Connexion réussie à la base de données.")
+
+        conn = connect(config)
+
         create_tables(conn)
         conn.close()
     else:
-        print("Impossible de se connecter à la base de données.")
+        print("Unable to connect to the database.")
+
+
 
 if __name__ == "__main__":
     main()
-

@@ -43,24 +43,19 @@ start-airflow:
 	helm upgrade --install airflow apache-airflow/airflow --namespace $(NAMESPACE2) --create-namespace -f kubernetes/airflow/my_airflow_values.yml
 
 	# Apply persistent volumes and claims for Airflow
-	kubectl apply -f kubernetes/persistent-volumes/my-api-postgres-pv.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-dags-folder-pv.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-logs-folder-pv.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-raw-init-folder-pv.yml
 	kubectl apply -f kubernetes/persistent-volumes/my-db-backup-pv.yml
-	kubectl apply -f kubernetes/persistent-volumes/my-api-postgres-pvc.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-dags-folder-pvc.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-logs-folder-pvc.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-raw-init-folder-pvc.yml
 	kubectl apply -f kubernetes/persistent-volumes/my-db-backup-pvc.yml
-	kubectl apply -f kubernetes/secrets/my-api-postgres-secrets.yml
+	kubectl apply -f kubernetes/configmaps/airflow-configmaps.yml
+	kubectl apply -f kubernetes/deployments/pgadmin-deployment.yml
+	kubectl apply -f kubernetes/services/pgadmin-service.yml
 	kubectl apply -f kubernetes/secrets/airflow-secrets.yaml
 	kubectl apply -f kubernetes/secrets/mlflow-secrets.yaml
-	kubectl apply -f kubernetes/configmaps/airflow-configmaps.yml
-	kubectl apply -f kubernetes/deployments/my-api-postgres-deployment.yml
-	kubectl apply -f kubernetes/deployments/pgadmin-deployment.yml
-	kubectl apply -f kubernetes/services/my-api-postgres-service.yml
-	kubectl apply -f kubernetes/services/pgadmin-service.yml
 
 # Deploy MLflow using Helm
 start-mlflow:

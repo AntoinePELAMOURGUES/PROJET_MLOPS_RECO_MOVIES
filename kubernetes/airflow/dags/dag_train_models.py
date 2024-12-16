@@ -7,7 +7,7 @@ from kubernetes.client import models as k8s
 secret_password = Secret(
     deploy_type="env",
     deploy_target="POSTGRES_PASSWORD",
-    secret="my-api-postgres-secrets"
+    secret="sql-conn"
 )
 
 with DAG(
@@ -27,9 +27,9 @@ with DAG(
     cmds=["python3", "train_models.py"],
     namespace= "airflow",
     env_vars={
-            'POSTGRES_HOST': "my-api-postgres.airflow.svc.cluster.local",
-            'POSTGRES_DB': 'my-api-database',
-            'POSTGRES_USER': 'antoine',
+            'POSTGRES_HOST': "airflow-postgresql.airflow.svc.cluster.local",
+            'POSTGRES_DB': 'postgres',
+            'POSTGRES_USER': 'postgres',
             'MLFLOW_TRACKING_URI': 'http://mlf-ts-mlflow-tracking.mlflow.svc.cluster.local',
             'MLFLOW_TRACKING_USERNAME': 'user',
             'MLFLOW_TRACKING_PASSWORD': 'diu1eQUTZX',  # Récupérer le mot de passe
