@@ -12,6 +12,10 @@ spec:
     metadata:
       labels:
         app: fastapi
+      annotations:
+        prometheus.io/scrape: "true" # Indique que Prometheus doit scrapper ce Pod.
+        prometheus.io/port: "8080" # Port sur lequel les métriques sont exposées.
+        prometheus.io/path: "/metrics" # Chemin où les métriques sont disponibles.
     spec:
       containers:
         - name: fastapi

@@ -47,7 +47,10 @@ try:
 
     if response.status_code == 200:
         result = response.json()
-        display_movies_grid(result)
+        if result:  # Vérifier que le résultat n'est pas vide
+            display_movies_grid(result)
+        else:
+            st.warning("Aucun film trouvé.")
     else:
         st.error(f"Erreur lors de la requête : {response.status_code} - {response.text}")
 except Exception as e:
@@ -69,7 +72,10 @@ try:
 
     if response.status_code == 200:
         result = response.json()
-        display_movies_grid(result)
+        if result:  # Vérifier que le résultat n'est pas vide
+            display_movies_grid(result)
+        else:
+            st.warning("Aucun film trouvé.")
     else:
         st.error(f"Erreur lors de la requête : {response.status_code} - {response.text}")
 except ValueError as e:
@@ -98,6 +104,9 @@ if st.button("Rechercher"):
 
     if response.status_code == 200:
         result = response.json()
-        display_movies_grid(result)
+        if result:  # Vérifier que le résultat n'est pas vide
+            display_movies_grid(result)
+        else:
+            st.warning("Aucun film trouvé.")
     else:
         st.error(f"Erreur lors de la requête : {response.status_code} - {response.text}")

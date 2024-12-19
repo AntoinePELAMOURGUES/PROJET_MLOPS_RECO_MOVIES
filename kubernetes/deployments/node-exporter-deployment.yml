@@ -12,6 +12,10 @@ spec:
     metadata:
       labels:
         app: node-exporter
+      annotations:
+        prometheus.io/scrape: "true" # Indique que Prometheus doit scrapper ce Pod.
+        prometheus.io/port: "9100" # Port sur lequel les métriques sont exposées.
+        prometheus.io/path: "/metrics" # Chemin où les métriques sont disponibles.
     spec:
       containers:
         - name: node-exporter

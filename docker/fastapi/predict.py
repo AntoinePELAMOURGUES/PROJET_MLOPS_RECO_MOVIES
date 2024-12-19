@@ -212,8 +212,8 @@ def get_movie_title_recommendations(model, movie_id, X, movie_mapper, movie_inv_
 
     Output: retourne une liste des k ID de films similaires
     """
-    # Transposer la matrice X pour que les films soient en lignes et les utilisateurs en colonnes
-    X = X.T
+    # # Transposer la matrice X pour que les films soient en lignes et les utilisateurs en colonnes
+    # X = X.T
 
     neighbour_ids = []  # Liste pour stocker les ID des films similaires
 
@@ -440,7 +440,7 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
     try:
         # Forcer la conversion en int
         user_id = int(user_request.userId)
-        recommendations = get_user_recommendations(user_id, model_svd, ratings, n_recommendations = 9)
+        recommendations = get_user_recommendations(user_id, model_svd, ratings, n_recommendations = 12)
         logger.info(f"Recommandations pour l'utilisateur {userId}: {recommendations}")
         imdb_list = [imdb_dict[movie_id] for movie_id in recommendations if movie_id in imdb_dict]
         start_tmdb_time = time.time()
