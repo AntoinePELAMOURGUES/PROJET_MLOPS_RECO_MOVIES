@@ -3,58 +3,61 @@ import time
 import requests
 from bs4 import BeautifulSoup as bs
 import psycopg2
-
+from psycopg2 import IntegrityError
 
 
 def load_config():
     """Charge la configuration de la base de données à partir des variables d'environnement."""
     return {
-        'host': os.getenv('POSTGRES_HOST'),
-        'database': os.getenv('POSTGRES_DB'),
-        'user': os.getenv('POSTGRES_USER'),
-        'password': os.getenv('POSTGRES_PASSWORD')
+        "host": os.getenv("POSTGRES_HOST"),
+        "database": os.getenv("POSTGRES_DB"),
+        "user": os.getenv("POSTGRES_USER"),
+        "password": os.getenv("POSTGRES_PASSWORD"),
     }
+
 
 def connect(config):
     """Connecte au serveur PostgreSQL et retourne la connexion."""
     try:
         conn = psycopg2.connect(**config)
-        print('Connected to the PostgreSQL server.')
+        print("Connected to the PostgreSQL server.")
         return conn
     except (psycopg2.DatabaseError, Exception) as error:
         print(f"Connection error: {error}")
         return None
 
+
 # Récupération du token TMDB depuis les variables d'environnement
 tmdb_token = os.getenv("TMDB_TOKEN")
+
 
 def scrape_imdb_first_page():
     """Scrape les données des films depuis IMDb et les renvoie sous forme de listes."""
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
     }
 
     try:
         # Récupérer la page des box-offices d'IMDb
         page = requests.get("https://www.imdb.com/chart/boxoffice", headers=headers)
         page.raise_for_status()  # Vérifier que la requête a réussi
-        soup = bs(page.content, 'lxml')  # Extraire les liens et titres des films
+        soup = bs(page.content, "lxml")  # Extraire les liens et titres des films
 
-        links = [a['href'] for a in soup.find_all('a', class_='ipc-title-link-wrapper')]
-        cleaned_links = [link.split('/')[2].split('?')[0].replace('tt', '') for link in links]
+        links = [a["href"] for a in soup.find_all("a", class_="ipc-title-link-wrapper")]
+        cleaned_links = [
+            link.split("/")[2].split("?")[0].replace("tt", "") for link in links
+        ]
 
         return cleaned_links
     except requests.RequestException as e:
         print(f"Erreur lors de la récupération de la page IMDb : {e}")
         return []
 
+
 def genres_request():
     """Effectue des requêtes à l'API TMDB pour récupérer les informations des genres de films."""
     url = "https://api.themoviedb.org/3/genre/movie/list?language=en"
-    headers = {
-        "accept": "application/json",
-        "Authorization": f"Bearer {tmdb_token}"
-    }
+    headers = {"accept": "application/json", "Authorization": f"Bearer {tmdb_token}"}
 
     try:
         response = requests.get(url, headers=headers)
@@ -66,6 +69,7 @@ def genres_request():
     except requests.RequestException as e:
         print(f"Erreur lors de la récupération des genres : {e}")
         return {}
+
 
 def api_tmdb_request():
     """Effectue des requêtes à l'API TMDB pour récupérer les informations des films."""
@@ -82,7 +86,7 @@ def api_tmdb_request():
 
         headers = {
             "accept": "application/json",
-            "Authorization": f"Bearer {tmdb_token}"
+            "Authorization": f"Bearer {tmdb_token}",
         }
 
         try:
@@ -99,19 +103,24 @@ def api_tmdb_request():
                 results[str(index)] = {
                     "tmdb_id": movie_info["id"],
                     "title": movie_info["title"],
-                    "genre_ids": movie_info['genre_ids'],
+                    "genre_ids": movie_info["genre_ids"],
                     "imbd_id": movie_id,
                     "date": release_date,
                     "year": release_year,
-                    "genres": [genres[str(genre_id)] for genre_id in movie_info['genre_ids']]
+                    "genres": [
+                        genres[str(genre_id)] for genre_id in movie_info["genre_ids"]
+                    ],
                 }
             else:
-                results[str(index)] = {"error": f"Aucun résultat trouvé pour l'ID IMDb {movie_id}"}
+                results[str(index)] = {
+                    "error": f"Aucun résultat trouvé pour l'ID IMDb {movie_id}"
+                }
 
         except requests.RequestException as e:
             results[str(index)] = {"error": f"Erreur lors de la requête TMDB : {e}"}
 
     return results
+
 
 def insert_movies_and_links(scraped_data):
     """Insère les films et les liens dans la base de données."""
@@ -121,11 +130,11 @@ def insert_movies_and_links(scraped_data):
     max_movie_id = cursor.fetchone()[0]
     try:
         for movie_key, movie_info in scraped_data.items():
-            if 'error' in movie_info:
+            if "error" in movie_info:
                 print(f"Ignoré: {movie_info['error']}")
                 continue
 
-            required_fields = ['title', 'year', 'genres', 'imbd_id', 'tmdb_id']
+            required_fields = ["title", "year", "genres", "imbd_id", "tmdb_id"]
             if not all(field in movie_info for field in required_fields):
                 print(f"Champs manquants pour l'entrée {movie_key}: {movie_info}")
                 continue
@@ -134,36 +143,50 @@ def insert_movies_and_links(scraped_data):
             movieid = max_movie_id + 1
             title = movie_info["title"]
             year = int(movie_info["year"])
-            genres_str = ','.join(movie_info["genres"])
+            genres_str = ", ".join(movie_info["genres"])
             imdb_id = int(movie_info["imbd_id"])
             tmdb_id = int(movie_info["tmdb_id"])
 
             # Vérifier si le film existe déjà
-            cursor.execute("SELECT COUNT(*) FROM movies WHERE title = %s AND year = %s", (title, year))
+            cursor.execute(
+                "SELECT COUNT(*) FROM movies WHERE title = %s AND year = %s",
+                (title, year),
+            )
             exists = cursor.fetchone()[0] > 0
 
             if exists:
-                print(f"Le film '{title}' de l'année {year} existe déjà. Ignorer l'insertion.")
+                print(
+                    f"Le film '{title}' de l'année {year} existe déjà. Ignorer l'insertion."
+                )
                 continue
 
             # Insérer le nouveau film
-            cursor.execute(
-                "INSERT INTO movies (movieid, title, genres, year) VALUES (%s, %s, %s, %s)",
-                (movieid, title, genres_str, year)
-            )
+            try:
+                cursor.execute(
+                    "INSERT INTO movies (movieid, title, genres, year) VALUES (%s, %s, %s, %s)",
+                    (movieid, title, genres_str, year),
+                )
 
-            # Insérer les liens associés
-            cursor.execute(
-                "INSERT INTO links (movieid, imdbid, tmdbid) VALUES (%s, %s, %s)",
-                (movieid, imdb_id, tmdb_id)
-            )
-            print(f"Film '{title} {year}' inséré avec succès.")
-        conn.commit()  # Valider les modifications
+                # Insérer les liens associés
+                cursor.execute(
+                    "INSERT INTO links (movieid, imdbid, tmdbid) VALUES (%s, %s, %s)",
+                    (movieid, imdb_id, tmdb_id),
+                )
+                print(f"Film '{title} {year}' inséré avec succès.")
+
+            except IntegrityError as e:
+                print(
+                    f"Erreur lors de l'insertion pour '{title}': {e}. Ignorer cette entrée."
+                )
+                conn.rollback()  # Annuler la transaction pour éviter de bloquer les prochaines insertions
+
+        conn.commit()  # Valider les modifications après toutes les insertions
     except Exception as e:
         print(f"Erreur lors de l'insertion: {e}")
     finally:
         cursor.close()
         conn.close()
+
 
 if __name__ == "__main__":
     results = api_tmdb_request()

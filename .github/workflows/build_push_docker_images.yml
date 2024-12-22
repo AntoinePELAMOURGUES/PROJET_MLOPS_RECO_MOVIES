@@ -30,22 +30,6 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/projet_reco_movies:python-init-db-latest
 
-      - name: Build and push build_features image
-        uses: docker/build-push-action@v2
-        with:
-          context: ./docker/python_build_features
-          file: ./docker/python_build_features/Dockerfile
-          push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/projet_reco_movies:python-build-features-latest
-
-      - name: Build and push recover_data image
-        uses: docker/build-push-action@v2
-        with:
-          context: ./docker/python_recover_data
-          file: ./docker/python_recover_data/Dockerfile
-          push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/projet_reco_movies:python-recover-data-latest
-
       - name: Build and push Api image
         uses: docker/build-push-action@v2
         with:

@@ -9,7 +9,13 @@ from datetime import datetime
 from scipy.sparse import csr_matrix
 from sklearn.neighbors import NearestNeighbors
 import numpy as np
-import mlflow
+from dotenv import load_dotenv
+
+# Charger les variables d'environnement à partir du fichier .env
+load_dotenv()
+
+my_project_directory = os.getenv("MY_PROJECT_DIRECTORY")
+print(f"my_project_directory: {my_project_directory}")
 
 
 def load_data(raw_data_relative_path):
@@ -23,7 +29,13 @@ def load_data(raw_data_relative_path):
         tuple: DataFrames pour les évaluations, les films et les liens.
     """
     try:
-        df_ratings = pd.read_csv(f"{raw_data_relative_path}/processed_ratings.csv")
+        df_ratings = pd.read_csv(
+            f"{raw_data_relative_path}/processed_ratings.csv",
+            usecols=["userid", "movieid", "rating"],  # Sélectionner les colonnes
+            dtype={"rating": "float32"},  # Convertir 'rating' en float32)
+        )
+        df_ratings = df_ratings.sample(frac=0.8)  # Utiliser 80 % des donnnées
+        print("Fichier processed_ratings chargé avec succès.")
         return df_ratings
     except FileNotFoundError as e:
         print(f"File not found: {e}")
@@ -39,9 +51,6 @@ def train_SVD_model(df, data_directory) -> tuple:
     Args:
         df (pd.DataFrame): DataFrame contenant les colonnes userId, movieId et rating.
     """
-
-    # Démarrer une nouvelle expérience MLflow
-    mlflow.start_run()
 
     start_time = datetime.now()  # Démarrer la mesure du temps
 
@@ -72,19 +81,10 @@ def train_SVD_model(df, data_directory) -> tuple:
         pickle.dump(model, f)
         print(f"Modèle SVD enregistré avec pickle sous {data_directory}/model_SVD.pkl.")
 
-    # Enregistrer les métriques dans MLflow
-    mlflow.log_metric("RMSE", acc_rounded)
-
-    # Enregistrer le modèle avec MLflow
-    mlflow.sklearn.log_model(model, "model_SVD")
-
     end_time = datetime.now()
 
     duration = end_time - start_time
     print(f"Durée de l'entraînement : {duration}")
-
-    # Finir l'exécution de l'expérience MLflow
-    mlflow.end_run()
 
 
 def create_X(df):
@@ -121,8 +121,7 @@ def train_matrix_model(df, data_directory, k=10, metric="cosine"):
         k (int): Nombre de voisins à considérer.
         metric (str): Métrique de distance pour KNN.
     """
-    # Démarrer une nouvelle expérience MLflow
-    mlflow.start_run()
+
     # Démarrer la mesure du temps
     start_time = datetime.now()
     X, user_mapper, movie_mapper, user_inv_mapper, movie_inv_mapper = create_X(df)
@@ -145,31 +144,10 @@ def train_matrix_model(df, data_directory, k=10, metric="cosine"):
         pickle.dump(kNN, f)
         print(f"Modèle SVD enregistré avec pickle sous {data_directory}/model_KNN.pkl.")
 
-    # Enregistrer les informations du modèle dans MLflow (par exemple la durée d'entraînement)
-    mlflow.log_param("k_neighbors", k)
-    mlflow.log_param("metric", metric)
-    mlflow.log_param("training_duration", duration.total_seconds())
-    # Enregistrer le modèle avec MLflow
-    mlflow.sklearn.log_model(kNN, "model_KNN")
-
-    mlflow.end_run()  # Finir l'exécution de l'expérience MLflow
-
-
-def authenticate_mlflow():
-    """Authentifie MLflow en utilisant les variables d'environnement."""
-    mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI"))
-    mlflow.set_experiment("Movie Recommendation Models")
-    mlflow_username = os.getenv("MLFLOW_TRACKING_USERNAME")
-    mlflow_password = os.getenv("MLFLOW_TRACKING_PASSWORD")
-    if mlflow_username and mlflow_password:
-        os.environ["MLFLOW_TRACKING_USERNAME"] = mlflow_username
-        os.environ["MLFLOW_TRACKING_PASSWORD"] = mlflow_password
-
 
 if __name__ == "__main__":
-    raw_data_relative_path = "/root/mount_file/raw"
-    data_directory = "/root/mount_file/models"
-    authenticate_mlflow()
+    raw_data_relative_path = os.path.join(my_project_directory, "data/raw/silver")
+    data_directory = os.path.join(my_project_directory, "data/models")
     ratings = load_data(raw_data_relative_path)
     print("Entrainement du modèle SVD")
     train_SVD_model(ratings, data_directory)

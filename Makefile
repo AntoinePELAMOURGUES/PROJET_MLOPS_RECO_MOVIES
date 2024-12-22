@@ -28,7 +28,7 @@ start-all: start-minikube start-airflow start-mlflow start-api
 
 # Start Minikube with specified resources
 start-minikube:
-	minikube start --driver=docker --memory=8192 --cpus=4 --mount --mount-string="/home/antoine/jul24_cmlops_reco_film/:/host"
+	minikube start --driver=docker --memory=24000 --cpus=4 --mount --mount-string="/home/antoine/PROJET_MLOPS_RECO_MOVIES:/host"
 
 # Install Helm package manager
 install-helm:
@@ -45,11 +45,11 @@ start-airflow:
 	# Apply persistent volumes and claims for Airflow
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-dags-folder-pv.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-logs-folder-pv.yml
-	kubectl apply -f kubernetes/persistent-volumes/airflow-local-raw-init-folder-pv.yml
+	kubectl apply -f kubernetes/persistent-volumes/airflow-local-data-init-folder-pv.yml
 	kubectl apply -f kubernetes/persistent-volumes/my-db-backup-pv.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-dags-folder-pvc.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-logs-folder-pvc.yml
-	kubectl apply -f kubernetes/persistent-volumes/airflow-local-raw-init-folder-pvc.yml
+	kubectl apply -f kubernetes/persistent-volumes/airflow-local-data-init-folder-pvc.yml
 	kubectl apply -f kubernetes/persistent-volumes/my-db-backup-pvc.yml
 	kubectl apply -f kubernetes/configmaps/airflow-configmaps.yml
 	kubectl apply -f kubernetes/deployments/pgadmin-deployment.yml
@@ -69,7 +69,7 @@ start-mlflow:
 
 # Deploy API services (FastAPI and Streamlit)
 start-api:
-	kubectl create namespace $(NAMESPACE1) || true # Avoid error if namespace already exists
+	kubectl create namespace $(NAMESPACE1) || true
 	kubectl apply -f kubernetes/persistent-volumes/models-storage-pv.yml
 	kubectl apply -f kubernetes/persistent-volumes/grafana-pv.yml
 	kubectl apply -f kubernetes/persistent-volumes/prometheus-pv.yml

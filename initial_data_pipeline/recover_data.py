@@ -1,6 +1,9 @@
 import os
 import requests
 
+my_project_directory = os.getenv("MY_PROJECT_DIRECTORY")
+
+
 def download_and_save_file(url, raw_data_relative_path):
     """
     Télécharge les fichiers CSV depuis l'URL donnée et les enregistre dans le chemin spécifié.
@@ -9,8 +12,10 @@ def download_and_save_file(url, raw_data_relative_path):
         url (str): L'URL de base pour télécharger les fichiers.
         raw_data_relative_path (str): Chemin relatif où les fichiers seront enregistrés.
     """
-    filenames = ['links.csv', 'movies.csv', 'ratings.csv']
-    os.makedirs(raw_data_relative_path, exist_ok=True)  # Crée le répertoire si nécessaire
+    filenames = ["links.csv", "movies.csv", "ratings.csv"]
+    os.makedirs(
+        raw_data_relative_path, exist_ok=True
+    )  # Crée le répertoire si nécessaire
 
     for filename in filenames:
         data_url = os.path.join(url, filename)
@@ -19,7 +24,7 @@ def download_and_save_file(url, raw_data_relative_path):
             response.raise_for_status()  # Assure que la requête a réussi
             print(f"Downloading {filename} from {data_url}")
             file_path = os.path.join(raw_data_relative_path, filename)
-            with open(file_path, 'wb') as file:
+            with open(file_path, "wb") as file:
                 file.write(response.content)  # Écrit le contenu dans le fichier
             print(f"File saved to {file_path}")
 
@@ -28,8 +33,13 @@ def download_and_save_file(url, raw_data_relative_path):
         except IOError as e:
             print(f"Error saving {filename}: {e}")
 
+
 # ...existing code...
 if __name__ == "__main__":
-    raw_data_relative_path="/root/mount_file/bronze"
-    bucket_folder_url="https://mlops-project-db.s3.eu-west-1.amazonaws.com/movie_recommandation/"
-    download_and_save_file(url=bucket_folder_url, raw_data_relative_path=raw_data_relative_path)
+    raw_data_relative_path = os.path.join(my_project_directory, "data", "raw", "bronze")
+    bucket_folder_url = (
+        "https://mlops-project-db.s3.eu-west-1.amazonaws.com/movie_recommandation/"
+    )
+    download_and_save_file(
+        url=bucket_folder_url, raw_data_relative_path=raw_data_relative_path
+    )
