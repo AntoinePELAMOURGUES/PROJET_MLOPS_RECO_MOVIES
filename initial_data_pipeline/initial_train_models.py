@@ -6,10 +6,10 @@ from surprise.model_selection import train_test_split
 from surprise import accuracy
 import pickle
 from datetime import datetime
-from scipy.sparse import csr_matrix
 from sklearn.neighbors import NearestNeighbors
 import numpy as np
 from dotenv import load_dotenv
+from sklearn.metrics.pairwise import cosine_similarity
 
 # Charger les variables d'environnement à partir du fichier .env
 load_dotenv()
@@ -36,7 +36,9 @@ def load_data(raw_data_relative_path):
         )
         df_ratings = df_ratings.sample(frac=0.8)  # Utiliser 80 % des donnnées
         print("Fichier processed_ratings chargé avec succès.")
-        return df_ratings
+        df_movies = pd.read_csv(f"{raw_data_relative_path}/processed_movies.csv")
+        print("Fichier processed_movies chargé avec succès.")
+        return df_ratings, df_movies
     except FileNotFoundError as e:
         print(f"File not found: {e}")
     except pd.errors.EmptyDataError as e:
@@ -87,70 +89,54 @@ def train_SVD_model(df, data_directory) -> tuple:
     print(f"Durée de l'entraînement : {duration}")
 
 
-def create_X(df):
-    """Crée une matrice creuse et les dictionnaires de correspondance.
-
-    Args:
-        df (pd.DataFrame): DataFrame avec colonnes userId, movieId, rating.
-
-    Returns:
-        tuple: (matrice_creuse, user_mapper, movie_mapper, user_inv_mapper, movie_inv_mapper)
+def train_cosine_similarity(movies, data_directory):
     """
-    M = df["userid"].nunique()
-    N = df["movieid"].nunique()
-
-    user_mapper = dict(zip(np.unique(df["userid"]), list(range(M))))
-    movie_mapper = dict(zip(np.unique(df["movieid"]), list(range(N))))
-
-    user_inv_mapper = dict(zip(list(range(M)), np.unique(df["userid"])))
-    movie_inv_mapper = dict(zip(list(range(N)), np.unique(df["movieid"])))
-
-    user_index = [user_mapper[i] for i in df["userid"]]
-    item_index = [movie_mapper[i] for i in df["movieid"]]
-
-    X = csr_matrix((df["rating"], (user_index, item_index)), shape=(M, N))
-
-    return X, user_mapper, movie_mapper, user_inv_mapper, movie_inv_mapper
-
-
-def train_matrix_model(df, data_directory, k=10, metric="cosine"):
-    """Entraîne et sauvegarde un modèle KNN basé sur une matrice creuse.
-
-    Args:
-        df (pd.DataFrame): DataFrame avec les données d'évaluation.
-        k (int): Nombre de voisins à considérer.
-        metric (str): Métrique de distance pour KNN.
+    Calcule la similarité cosinus entre les films en utilisant les genres des films dans le cadre d'un démarrage à froid.
     """
+    # Vérifier les colonnes et le contenu
+    print("Colonnes du DataFrame :", movies.columns)
+    print("Aperçu du DataFrame :")
+    print(movies.head())
+    start_time = datetime.now()  # Démarrer la mesure du temps
+    # Supprimer les espaces dans les genres
+    if "genres" in movies.columns:
+        # Supprimer les espaces autour des virgules
+        movies["genres"] = movies["genres"].str.replace(
+            " ", ""
+        )  # Cela supprime tous les espaces
+        # Nettoyer les genres en supprimant les espaces au début et à la fin
+        movies["genres"] = movies["genres"].str.strip()
 
-    # Démarrer la mesure du temps
-    start_time = datetime.now()
-    X, user_mapper, movie_mapper, user_inv_mapper, movie_inv_mapper = create_X(df)
-    # Transposer la matrice X pour que les films soient en lignes et les utilisateurs en colonnes
-    X = X.T
-    # Initialiser NearestNeighbors avec k+1 car nous voulons inclure le film lui-même dans les voisins
-    kNN = NearestNeighbors(n_neighbors=k + 1, algorithm="brute", metric=metric)
+        # Créer des variables indicatrices pour les genres
+        genres = movies["genres"].str.get_dummies(sep=",")
 
-    kNN.fit(X)
+        # Afficher la matrice des genres
+        print("\nMatrice des genres :")
+        print(genres)
 
-    end_time = datetime.now()
-
-    duration = end_time - start_time
-    print(f"Durée de l'entraînement : {duration}")
+        # Calculer la similarité cosinus
+        cosine_sim = cosine_similarity(genres)
+        print(f"Dimensions de notre matrice de similarité cosinus : {cosine_sim.shape}")
+    else:
+        print("La colonne 'genres' n'existe pas dans le DataFrame.")
 
     os.makedirs(data_directory, exist_ok=True)  # Crée le répertoire si nécessaire
 
     # Enregistrement du modèle avec pickle
-    with open(f"{data_directory}/model_KNN.pkl", "wb") as f:
-        pickle.dump(kNN, f)
-        print(f"Modèle SVD enregistré avec pickle sous {data_directory}/model_KNN.pkl.")
+    with open(f"{data_directory}/cosine_similarity_matrix.pkl", "wb") as f:
+        pickle.dump(cosine_sim, f)
+        print(
+            f"Matrice de simiarité enregistrée avec pickle sous {data_directory}/cosine_similarity_matrix.pkl."
+        )
 
 
 if __name__ == "__main__":
     print("########## TRAIN MODELS ##########")
     raw_data_relative_path = os.path.join(my_project_directory, "data/raw/silver")
     data_directory = os.path.join(my_project_directory, "data/models")
-    ratings = load_data(raw_data_relative_path)
-    print("Entrainement du modèle SVD")
-    train_SVD_model(ratings, data_directory)
-    print("Entrainement du modèle CSR Matrix")
-    train_matrix_model(ratings, data_directory)
+    movies = pd.read_csv(f"{raw_data_relative_path}/processed_movies.csv")
+    # ratings, movies = load_data(raw_data_relative_path)
+    # print("Entrainement du modèle SVD")
+    # train_SVD_model(ratings, data_directory)
+    print("Création de la matrice de similarité cosinus en fonction des genres")
+    train_cosine_similarity(movies, data_directory)

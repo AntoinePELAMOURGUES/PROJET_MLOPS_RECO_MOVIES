@@ -1,59 +1,146 @@
+<h1>RECOMMANDATION DE FILMS</h1>
 
 ![Project Logo](reco_movies_project.jpeg)
 
-# Introduction
-
+<h2>:diamond_shape_with_a_dot_inside:Introduction</h2>
 Dans le cadre de notre formation en Machine Learning Operations (MLOps) dispensée par Datascientest, nous avons l'opportunité d'explorer la mise en production et le monitoring d'une API dédiée à la recommandation de films. Ce projet vise à allier théorie et pratique en développant une solution robuste qui non seulement prédit les films susceptibles d'intéresser les utilisateurs, mais assure également un suivi constant de la performance de l'API.
 
-## Objectifs du Projet
+<h2>:diamond_shape_with_a_dot_inside:Objectifs du Projet</h2>
 
 - **Développement d'une API Performante** : Créer une API capable de fournir des recommandations de films basées sur des données utilisateurs et des modèles d'apprentissage automatique.
 - **Mise en Production** : Déployer l'API dans un environnement de production pour garantir son accessibilité et sa fiabilité.
 - **Monitoring Efficace** : Mettre en place des outils de surveillance pour suivre la disponibilité, les performances et les éventuelles erreurs de l'API, assurant ainsi une expérience utilisateur optimale.
 
-## Pourquoi ce Projet ?
+<h2>:diamond_shape_with_a_dot_inside:Pourquoi ce Projet ?</h2>
 
 Avec l'essor des services de streaming et la demande croissante pour des recommandations personnalisées, ce projet s'inscrit dans une tendance actuelle du marché. En intégrant des pratiques de MLOps, nous visons à garantir que notre solution soit non seulement fonctionnelle, mais aussi scalable et maintenable. Le monitoring joue un rôle crucial dans cette démarche, permettant d'anticiper les problèmes avant qu'ils n'affectent l'utilisateur final.
 
 Ce repository est donc un témoignage de notre apprentissage et de notre capacité à développer des solutions innovantes dans le domaine du Machine Learning et des API. Nous vous invitons à explorer le code, à tester l'API et à contribuer à son amélioration.
 
-## Organisation du projet
+<h2>:diamond_shape_with_a_dot_inside:Guide de démarrage rapide</h2>
 
+Vous souhaitez déployer notre application de recommandation de films.
+
+Suivez ces étapes simples pour lancer l'application en local.
+
+## 🛠️ Prérequis
+
+Assurez-vous d'avoir installé les éléments suivants sur votre machine :
+
+1. [Python](https://www.python.org/) >= 3.9
+2. [Docker Desktop](https://docs.docker.com/desktop/)
+3. [Minikube](https://minikube.sigs.k8s.io/docs/start/)
+
+## :computer: Installation
+
+### Clonage du repository
+
+Clonnez ce repository sur votre machine locale :
+
+```bash
+git clone https://github.com/AntoinePELAMOURGUES/PROJET_MLOPS_RECO_MOVIES
 ```
 
-├── LICENSE
-├── README.md
-├── app                         # Dossier principal contenant les différentes applications
-│ ├── docker-compose.yml        # Fichier de configuration pour Docker Compose
-│ ├── fastapi                   # Dossier pour l'application FastAPI
-│ │ ├── Dockerfile              # Fichier pour construire l'image Docker de l'application FastAPI
-│ │ ├── app                     # Dossier contenant le code source de l'application FastAPI
-│ │ │ ├── README.md
-│ │ │ ├── auth.py               # Module pour la gestion de l'authentification
-│ │ │ ├── database.py           # Module pour la gestion de la base de données
-│ │ │ ├── main.py               # Point d'entrée principal de l'application FastAPI
-│ │ │ ├── model
-│ │ │ ├── models.py             # Modèle pour classe user
-│ │ │ ├── predict.py            # Module pour la gestion des recommandations
-│ │ │ ├── raw                   # Dossier pour les données brutes utilisées par l'application
-│ │ └── requirements.txt        # Liste des dépendances Python nécessaires pour FastAPI
-│ ├── model-trainer-predictor   # Dossier pour le module d'entraînement et de prédiction du modèle
-│ │ ├── Dockerfile              # Fichier pour construire l'image Docker du modèle KNN
-│ │ ├── app                     # Dossier contenant le code source pour le modèle KNN
-│ │ └── requirements.txt        # Liste des dépendances Python nécessaires pour le modèle KNN
-│ ├── prometheus                # Dossier pour la configuration de Prometheus (monitoring)
-│ │ └── prometheus.yml          # Fichier de configuration pour Prometheus
-│ └── streamlit                 # Dossier pour l'application Streamlit
-│ ├── Dockerfile                # Fichier pour construire l'image Docker de l'application Streamlit
-│ ├── app                       # Dossier contenant le code source de l'application Streamlit
-│ │ ├── **init**.py
-│ │ ├── app.py                  # Point d'entrée principal de l'application Streamlit
-│ │ ├── images                  # Dossier contenant les images utilisées dans l'application Streamlit
-│ │ └── pages                   # Dossier contenant les différentes pages de l'application Streamlit
-│ └── requirements.txt          # Liste des dépendances Python nécessaires pour Streamlit
-├── notebooks                   # Dossier contenant les notebooks Jupyter pour l'exploration et le développement
-├── references                  # Dossier pouvant contenir des références bibliographiques ou autres documents pertinents
-├── reports                     # Dossier destiné aux rapports
-└── src                         # Dossier source contenant le code principal du projet
+## :wrench: Téléchargement et preprocessing des données initiales
 
----
+### Instructions :
+
+Avant de plonger dans l'aventure, nous vous invitons à créer un environnement isolé avec env ou conda. Cela vous permettra de travailler en toute sérénité et d'explorer sans limites !
+
+1. Naviguez jusqu'à la racine du répertoire cloné :
+
+```bash
+cd {REPOSITORY}
+```
+
+2. Commencez par télécharger les bibliothèques nécessaires, puis personnalisez votre fichier .env :
+
+```bash
+make install-initial-data
+```
+
+3. Lancez le téléchargement des données initiales qui seront pré-traitées puis entrainez les modèles :
+
+```bash
+make preprocess-data
+```
+
+## 🚀 Déploiement via Kubernetes et cluster local Minikube
+
+1. Lancement de minikube
+
+Avant de lancer notre cluster local, rendez-vous dans le fichier Makefile afin de modifier la ligne 7 : PROJECT_DIRECTORY = "Chemin vers votre projet". Sauvegardez les modifications puis lancez minikube:
+
+```bash
+make start-minikube
+```
+
+2. Lancement de kubernetes & airflow
+
+```bash
+make start-airflow
+```
+
+Une fois les déploiements, volumes, services lancés, entrez le code suivant afin de vous rendre sur l'interface d'Airflow (user et mdp = admin)
+
+```bash
+minikube service airflow-webserver -n airflow
+```
+
+Vous devriez voir apparaître un DAG nommé 'unique_dag_preprocess_data_to_db'. Ce DAG sera essentiel pour créer nos tables movies, ratings, links et users, et pour les alimenter avec les données prétraitées. Préparez-vous à donner vie à votre base de données !
+
+Notez que vous pouvez accéder à Pgadmin afin de visualiser votre base de données:
+
+```bash
+minikube service pgadmin-service -n airflow
+```
+
+Configuration initiale de pgadmin:
+
+- **user** : admin@pgadmin.org
+- **password**: admin
+
+Rendez-vous dans "Add New Server", entrez dans Général le nom que vous souhaitez puis dans Connection, remplissez les champs suivants :
+
+- **Host name/address** : airflow-postgresql
+- **Port** : 5432
+- **Username** : postgres
+- **Password** : postgres
+
+3. Lancement de Mlflow, Fastapi, Streamlit, Prometheus & Grafana
+
+```bash
+make start-mlflow
+```
+
+```bash
+make start-api
+```
+
+## 👓 Visualisation de notre API et des données monitorées
+
+1. Visualisation de notre Api de recommandation:
+
+```bash
+minikube service streamlit -n api
+```
+
+2. Visualisation de nos logs:
+
+```bash
+minikube service grafana -n api
+```
+
+3. Visualisation de fastapi:
+
+```bash
+minikube service fastapi -n api
+```
+
+## :skull: Arrêt de l'application
+
+Rendez-vous dans le terminal puis tapez:
+
+```bash
+minikube stop
+```
