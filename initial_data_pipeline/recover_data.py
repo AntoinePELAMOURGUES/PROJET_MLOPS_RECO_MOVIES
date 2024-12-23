@@ -1,5 +1,9 @@
 import os
 import requests
+from dotenv import load_dotenv
+
+# Charger les variables d'environnement à partir du fichier .env
+load_dotenv()
 
 my_project_directory = os.getenv("MY_PROJECT_DIRECTORY")
 
@@ -22,7 +26,7 @@ def download_and_save_file(url, raw_data_relative_path):
         try:
             response = requests.get(data_url)
             response.raise_for_status()  # Assure que la requête a réussi
-            print(f"Downloading {filename} from {data_url}")
+            print(f": Downloading {filename} from {data_url}")
             file_path = os.path.join(raw_data_relative_path, filename)
             with open(file_path, "wb") as file:
                 file.write(response.content)  # Écrit le contenu dans le fichier
@@ -36,6 +40,7 @@ def download_and_save_file(url, raw_data_relative_path):
 
 # ...existing code...
 if __name__ == "__main__":
+    print("############ DOWNLOADING INITIAL DATA ############")
     raw_data_relative_path = os.path.join(my_project_directory, "data", "raw", "bronze")
     bucket_folder_url = (
         "https://mlops-project-db.s3.eu-west-1.amazonaws.com/movie_recommandation/"

@@ -1,6 +1,10 @@
 import pandas as pd
 import os
 from passlib.context import CryptContext
+from dotenv import load_dotenv
+
+# Charger les variables d'environnement à partir du fichier .env
+load_dotenv()
 
 # Configuration du contexte pour le hachage des mots de passe
 bcrypt_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -23,7 +27,7 @@ def load_data(raw_data_relative_path):
         df_movies = pd.read_csv(f"{raw_data_relative_path}/movies.csv")
         df_links = pd.read_csv(f"{raw_data_relative_path}/links.csv")
         print(
-            f"Ratings, movies and links loaded from {raw_data_relative_path} directory"
+            f" Ratings, movies and links loaded from {raw_data_relative_path} directory"
         )
         return df_ratings, df_movies, df_links
     except FileNotFoundError as e:
@@ -46,7 +50,7 @@ def bayesienne_mean(df, M, C):
     Returns:
         float: La moyenne bayésienne calculée.
     """
-    moy_ba = (C * M + df.sum()) / (C + df.count())
+    moy_ba = round((C * M + df.sum()) / (C + df.count()), 2)
     return moy_ba
 
 
@@ -87,7 +91,7 @@ def preprocessing_ratings(df_ratings) -> pd.DataFrame:
     print("Application de la moyenne bayésienne sur la colonne rating effectuée")
     # Renommer les colonnes
     df_ratings = df_ratings.rename(columns={"userId": "userid", "movieId": "movieid"})
-    print("preprocessing ratings OK")
+    print("Preprocessing ratings OK")
     return df_ratings
 
 
@@ -101,7 +105,7 @@ def preprocessing_movies(df_movies) -> pd.DataFrame:
     Returns:
         pd.DataFrame: DataFrame contenant les films traités.
     """
-    print("Début preprocessing movies")
+    print(" Début preprocessing movies")
     print("Création d'une colonne year et passage des genres en liste de genres")
 
     # Séparer les genres sur les pipes et les joindre par des virgules
@@ -117,7 +121,7 @@ def preprocessing_movies(df_movies) -> pd.DataFrame:
     df_movies.ffill(inplace=True)
 
     df_movies = df_movies.rename(columns={"movieId": "movieid"})
-    print("preprocessing movies OK")
+    print(" Preprocessing movies OK")
     return df_movies
 
 
@@ -132,7 +136,7 @@ def preprocessing_links(df_links) -> pd.DataFrame:
         pd.DataFrame: DataFrame contenant les liens traités.
 
     """
-    print("Début preprocessing links")
+    print(" Début preprocessing links")
     print("Modification du type de la colonne tmdbId en int")
     # Remplacer les valeurs manquantes par 0 et convertir en entier
     df_links["tmdbId"] = df_links.tmdbId.fillna(0).astype(int)
@@ -141,7 +145,7 @@ def preprocessing_links(df_links) -> pd.DataFrame:
     df_links = df_links.rename(
         columns={"tmdbId": "tmdbid", "imdbId": "imdbid", "movieId": "movieid"}
     )
-    print("preprocessing links OK")
+    print(" Preprocessing links OK")
     return df_links
 
 
@@ -153,7 +157,7 @@ def create_users() -> pd.DataFrame:
         pd.DataFrame: DataFrame contenant les utilisateurs créés.
     """
 
-    print("Création des utilisateurs _ fichier users.csv")
+    print(" Création des utilisateurs _ fichier users.csv")
     username = []
     email = []
     password = []
@@ -201,6 +205,7 @@ def save_data(df_ratings, df_movies, df_links, df_users, data_directory):
 
 
 if __name__ == "__main__":
+    print("########## PREPROCESSING DATA ##########")
     raw_data_relative_path = os.path.join(my_project_directory, "data/raw/bronze")
     data_directory = os.path.join(my_project_directory, "data/raw/silver")
     # Chargement des données à partir du chemin spécifié

@@ -1,4 +1,3 @@
-import pandas as pd
 import os
 import json
 import pickle
@@ -11,7 +10,6 @@ from typing import Dict, Any, Optional
 from prometheus_client import Counter, Histogram, CollectorRegistry
 import time
 from pydantic import BaseModel
-from scipy.sparse import csr_matrix
 import psycopg2
 from dotenv import load_dotenv
 import requests
@@ -69,67 +67,75 @@ def connect(config):
         print(f"Connection error: {error}")
         return None
 
-# Chargement des datasets vai bdd
-def fetch_ratings() -> pd.DataFrame:
-    """Récupère enregistrements de la table ratings et les transforme en DataFrame."""
-    query = """
-    SELECT userId, movieId, rating
-    FROM ratings
-    """
-    config = load_config()
-    conn = connect(config)
+# def fetch_ratings(chunk_size=100000) -> pd.DataFrame:
+#     """Récupère enregistrements de la table ratings par morceaux et les transforme en DataFrame."""
+#     query = """
+#     SELECT userId, movieId, rating
+#     FROM ratings
+#     """
+#     config = load_config()
+#     conn = connect(config)
 
-    if conn is not None:
-        try:
-            with conn.cursor() as cur:
-                cur.execute(query)
-                df = pd.DataFrame(cur.fetchall(), columns=['userid', 'movieid', 'rating'])
-                print("Enregistrements table ratings récupérés")
-                return df
+#     if conn is not None:
+#         try:
+#             df_list = []  # Liste pour stocker les morceaux
+#             with conn.cursor() as cur:
+#                 cur.execute(query)
+#                 while True:
+#                     chunk = cur.fetchmany(chunk_size)  # Récupérer un morceau
+#                     if not chunk:
+#                         break  # Sortir si aucun enregistrement
+#                     df_chunk = pd.DataFrame(chunk, columns=['userid', 'movieid', 'rating'])
+#                     df_list.append(df_chunk)  # Ajouter le morceau à la liste
 
-        except Exception as e:
-            print(f"Erreur lors de la récupération des enregistrements: {e}")
-            raise
+#             df = pd.concat(df_list, ignore_index=True)  # Concaténer tous les morceaux
+#             print("Enregistrements table ratings récupérés")
+#             return df
 
-def fetch_movies() -> pd.DataFrame:
-    """Récupère enregistrements de la table movies et les transforme en DataFrame."""
-    query = """
-    SELECT movieid, title, genres
-    FROM movies
-    """
-    config = load_config()
-    conn = connect(config)
+#         except Exception as e:
+#             print(f"Erreur lors de la récupération des enregistrements: {e}")
+#             raise
 
-    if conn is not None:
-        try:
-            with conn.cursor() as cur:
-                cur.execute(query)
-                df = pd.DataFrame(cur.fetchall(), columns=['movieid', 'title', 'genres'])
-                print("Enregistrements table movies récupérés")
-                return df
-        except Exception as e:
-            print(f"Erreur lors de la récupération des enregistrements: {e}")
-            raise
 
-def fetch_links() -> pd.DataFrame:
-    """Récupère enregistrements de la table movies et les transforme en DataFrame."""
-    query = """
-    SELECT id, movieid, imdbid, tmdbid
-    FROM links
-    """
-    config = load_config()
-    conn = connect(config)
+# def fetch_movies() -> pd.DataFrame:
+#     """Récupère enregistrements de la table movies et les transforme en DataFrame."""
+#     query = """
+#     SELECT movieid, title, genres
+#     FROM movies
+#     """
+#     config = load_config()
+#     conn = connect(config)
 
-    if conn is not None:
-        try:
-            with conn.cursor() as cur:
-                cur.execute(query)
-                df = pd.DataFrame(cur.fetchall(), columns=['id', 'movieid', 'imdbid', 'tmdbid'])
-                print("Enregistrements table links récupérés")
-                return df
-        except Exception as e:
-            print(f"Erreur lors de la récupération des enregistrements: {e}")
-            raise
+#     if conn is not None:
+#         try:
+#             with conn.cursor() as cur:
+#                 cur.execute(query)
+#                 df = pd.DataFrame(cur.fetchall(), columns=['movieid', 'title', 'genres'])
+#                 print("Enregistrements table movies récupérés")
+#                 return df
+#         except Exception as e:
+#             print(f"Erreur lors de la récupération des enregistrements: {e}")
+#             raise
+
+# def fetch_links() -> pd.DataFrame:
+#     """Récupère enregistrements de la table movies et les transforme en DataFrame."""
+#     query = """
+#     SELECT id, movieid, imdbid, tmdbid
+#     FROM links
+#     """
+#     config = load_config()
+#     conn = connect(config)
+
+#     if conn is not None:
+#         try:
+#             with conn.cursor() as cur:
+#                 cur.execute(query)
+#                 df = pd.DataFrame(cur.fetchall(), columns=['id', 'movieid', 'imdbid', 'tmdbid'])
+#                 print("Enregistrements table links récupérés")
+#                 return df
+#         except Exception as e:
+#             print(f"Erreur lors de la récupération des enregistrements: {e}")
+#             raise
 
 # Chargement du dernier modèle
 def load_model(model_name):
@@ -142,15 +148,14 @@ def load_model(model_name):
         print(f'Modèle chargé depuis {model_path}')
     return model
 
-def create_X(df):
+def create_X(conn, chunk_size=100000):
     """
-    Génère une matrice creuse avec quatre dictionnaires de mappage
-    - user_mapper: mappe l'ID utilisateur à l'index utilisateur
-    - movie_mapper: mappe l'ID du film à l'index du film
-    - user_inv_mapper: mappe l'index utilisateur à l'ID utilisateur
-    - movie_inv_mapper: mappe l'index du film à l'ID du film
+    Génère une matrice creuse avec quatre dictionnaires de mappage à partir d'une base de données,
+    sans charger toutes les données en mémoire, en utilisant le chargement par morceaux.
+
     Args:
-        df: pandas dataframe contenant 3 colonnes (userId, movieId, rating)
+        conn: connexion à la base de données.
+        chunk_size: nombre de lignes à traiter par morceau.
 
     Returns:
         X: sparse matrix
@@ -159,36 +164,71 @@ def create_X(df):
         movie_mapper: dict that maps movie id's to movie indices
         movie_inv_mapper: dict that maps movie indices to movie id's
     """
-    M = df['userid'].nunique()
-    N = df['movieid'].nunique()
 
-    user_mapper = dict(zip(np.unique(df["userid"]), list(range(M))))
-    movie_mapper = dict(zip(np.unique(df["movieid"]), list(range(N))))
+    # Récupérer les IDs uniques des utilisateurs et des films
+    user_query = "SELECT DISTINCT userid FROM ratings"
+    movie_query = "SELECT DISTINCT movieid FROM ratings"
 
-    user_inv_mapper = dict(zip(list(range(M)), np.unique(df["userid"])))
-    movie_inv_mapper = dict(zip(list(range(N)), np.unique(df["movieid"])))
+    # Récupérer les IDs uniques
+    users = [row[0] for row in conn.execute(user_query)]
+    movies = [row[0] for row in conn.execute(movie_query)]
 
-    user_index = [user_mapper[i] for i in df['userid']]
-    item_index = [movie_mapper[i] for i in df['movieid']]
+    M = len(users)
+    N = len(movies)
 
-    X = csr_matrix((df["rating"], (user_index,item_index)), shape=(M,N))
+    # Créer des mappers
+    user_mapper = {user_id: index for index, user_id in enumerate(users)}
+    movie_mapper = {movie_id: index for index, movie_id in enumerate(movies)}
+
+    user_inv_mapper = {index: user_id for index, user_id in enumerate(users)}
+    movie_inv_mapper = {index: movie_id for index, movie_id in enumerate(movies)}
+
+    # Initialiser des listes pour stocker les indices et les notes
+    user_index = []
+    item_index = []
+    ratings = []
+
+    # Exécuter la requête et traiter par morceaux
+    ratings_query = "SELECT userid, movieid, rating FROM ratings"
+
+    # Utiliser un curseur pour récupérer les données par morceaux
+    cursor = conn.execute(ratings_query)
+
+    while True:
+        chunk = cursor.fetchmany(chunk_size)  # Récupérer un morceau de données
+        if not chunk:
+            break  # Sortir si aucun enregistrement
+
+        for row in chunk:
+            user_id, movie_id, rating = row
+            if user_id in user_mapper and movie_id in movie_mapper:
+                user_index.append(user_mapper[user_id])
+                item_index.append(movie_mapper[movie_id])
+                ratings.append(rating)
+
+    # Création de la matrice creuse
+    X = csr_matrix((ratings, (user_index, item_index)), shape=(M, N))
 
     return X, user_mapper, movie_mapper, user_inv_mapper, movie_inv_mapper
 
 # Fonction pour obtenir des recommandations pour un utilisateur donné
-def get_user_recommendations(user_id: int, model: SVD, ratings_df: pd.DataFrame, n_recommendations: int = 10):
-    """Obtenir des recommandations pour un utilisateur donné."""
-    # Créer un DataFrame contenant tous les films
-    all_movies = ratings_df['movieid'].unique()
+def get_user_recommendations(user_id: int, model: SVD, conn, n_recommendations: int = 10):
+    """Obtenir des recommandations pour un utilisateur donné à partir de la base de données."""
+
+    # Récupérer tous les films
+    all_movies_query = "SELECT DISTINCT movieid FROM ratings"
+    all_movies = [row[0] for row in conn.execute(all_movies_query)]
 
     # Obtenir les films déjà évalués par l'utilisateur
-    rated_movies = ratings_df[ratings_df['userid'] == user_id]['movieid'].tolist()
+    rated_movies_query = f"SELECT movieid FROM ratings WHERE userid = {user_id}"
+    rated_movies = [row[0] for row in conn.execute(rated_movies_query)]
 
     # Trouver les films non évalués par l'utilisateur
     unseen_movies = [movie for movie in all_movies if movie not in rated_movies]
 
     # Préparer les prédictions pour les films non évalués
     predictions = []
+
     for movie_id in unseen_movies:
         pred = model.predict(user_id, movie_id)
         predictions.append((movie_id, pred.est))  # Ajouter l'ID du film et la note prédite
@@ -274,10 +314,69 @@ def api_tmdb_request(movie_ids):
     return results
 
 # Recherche un titre proche de la requete
-def movie_finder(title):
-    all_titles = movies['title'].tolist()
+def movie_finder(all_titles, title):
     closest_match = process.extractOne(title,all_titles)
     return closest_match[0]
+
+def get_movie_id_by_title(conn, user_title):
+    query = f"""
+    SELECT movieid, title
+    FROM movies
+    WHERE title = '{user_title}';
+    """
+    movie_id = [row[0] for row in conn.execute(query)]
+    return movie_id
+
+
+def get_best_movies_for_user(conn, user_id, n=3):
+    """Obtenir les meilleurs films notés par un utilisateur donné."""
+    query = f"""
+    SELECT movieId, rating
+    FROM ratings
+    WHERE userid = {user_id}
+    ORDER BY rating DESC
+    LIMIT {n};
+    """
+
+    best_movies = [(row[0], row[1]) for row in conn.execute(query)]
+    return best_movies  # Retourner une liste de tuples (movieId, rating)
+
+def get_imdb_ids_for_best_movies(conn, best_movies):
+    """Récupère les IMDb IDs pour les meilleurs films notés."""
+    movie_ids = [movie_id for movie_id, _ in best_movies]  # Extraire les movieId des meilleurs films
+
+    # Créer une chaîne de caractères avec les IDs pour la clause IN
+    movie_ids_str = ', '.join(map(str, movie_ids))
+
+    # Requête SQL pour récupérer les IMDb IDs
+    query = f"""
+    SELECT movieid, imdbid
+    FROM links
+    WHERE movieid IN ({movie_ids_str});
+    """
+
+    # Exécuter la requête et créer un dictionnaire pour un accès facile
+    imdb_dict = {row[0]: row[1] for row in conn.execute(query)}
+
+    return imdb_dict  # Retourner un dictionnaire {movieid: imdbid}
+
+def get_imdb_ids_for_recommands_movies(conn, movies_list):
+
+    # Créer une chaîne de caractères avec les IDs pour la clause IN
+    movie_ids_str = ', '.join(map(str, movies_list))
+
+    # Requête SQL pour récupérer les IMDb IDs
+    query = f"""
+    SELECT movieid, imdbid
+    FROM links
+    WHERE movieid IN ({movie_ids_str});
+    """
+
+    # Exécuter la requête et créer un dictionnaire pour un accès facile
+    imdb_dict = {row[0]: row[1] for row in conn.execute(query)}
+
+    return imdb_dict  # Retourner un dictionnaire {movieid: imdbid}
+
 
 # ---------------------------------------------------------------
 
@@ -330,26 +429,28 @@ tmdb_request_duration_histogram = Histogram(
 # ---------------------------------------------------------------
 
 # CHARGEMENT DES DONNEES AU DEMARRAGE DE API
-print("DEBUT DES CHARGEMENTS")
-# Chargement de nos dataframe
-ratings = fetch_ratings()
-movies = fetch_movies()
-links = fetch_links()
+print("############ DEBUT DES CHARGEMENTS ############")
+# # Chargement de nos dataframe
+# ratings = fetch_ratings()
+# movies = fetch_movies()
+# links = fetch_links()
+conn = connect(load_config())
 # Chargement d'un modèle SVD pré-entraîné pour les recommandations
 model_svd = load_model('model_SVD.pkl')
 # Chargement de la matrice cosinus similarity
 model_Knn = load_model('model_KNN.pkl')
 # Création de la matrice utilisateur-article
-X, user_mapper, movie_mapper, user_inv_mapper, movie_inv_mapper = create_X(ratings)
-# Création d'un dataframe pour les liens entre les films et les ID IMDB
-movies_links_df = movies.merge(links, on = "movieid", how = 'left')
-# Création de dictionnaires pour faciliter l'accès aux titres et aux couvertures des films par leur ID
-movie_idx = dict(zip(movies['title'], list(movies.index)))
-# Création de dictionnaires pour accéder facilement aux titres et aux couvertures des films par leur ID
-movie_titles = dict(zip(movies['movieid'], movies['title']))
+X, user_mapper, movie_mapper, user_inv_mapper, movie_inv_mapper = create_X(conn, chunk_size=100000)
+# # Création d'un dataframe pour les liens entre les films et les ID IMDB
+# movies_links_df = movies.merge(links, on = "movieid", how = 'left')
+# # Création de dictionnaires pour faciliter l'accès aux titres et aux couvertures des films par leur ID
+# movie_idx = dict(zip(movies['title'], list(movies.index)))
+# # Création de dictionnaires pour accéder facilement aux titres et aux couvertures des films par leur ID
+# movie_titles = dict(zip(movies['movieid'], movies['title']))
 # Créer un dictionnaire pour un accès rapide
-imdb_dict = dict(zip(movies_links_df['movieid'], movies_links_df['imdbid']))
-
+# imdb_dict = dict(zip(movies_links_df['movieid'], movies_links_df['imdbid']))
+query = "SELECT title FROM movies;"
+all_titles = [row[0] for row in conn.execute(query)]
 print("FIN DES CHARGEMENTS")
 # ---------------------------------------------------------------
 
@@ -386,11 +487,11 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
     # Récupérer les ID des films recommandés en utilisant la fonction de similarité
     try:
         # Forcer la conversion en int
-        user_id = int(user_request.userId)
-        df_user = ratings[ratings['userid'] == user_id]
-        df_user = df_user.sort_values(by='rating', ascending=False)
-        best_movies = df_user.head(3)
-        imdb_list = [imdb_dict[movie_id] for movie_id in best_movies['movieid'] if movie_id in imdb_dict]
+        user_id = int(userId)
+        best_movies = get_best_movies_for_user(conn, user_id, n=3)
+        imdb_dict = get_imdb_ids_for_best_movies(conn, best_movies)
+        # Créer la liste des IMDb IDs
+        imdb_list = [imdb_dict[movie_id] for movie_id, _ in best_movies if movie_id in imdb_dict]
         start_tmdb_time = time.time()
         results = api_tmdb_request(imdb_list)
         tmdb_duration = time.time() - start_tmdb_time
@@ -440,8 +541,9 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
     try:
         # Forcer la conversion en int
         user_id = int(user_request.userId)
-        recommendations = get_user_recommendations(user_id, model_svd, ratings, n_recommendations = 12)
+        recommendations = get_user_recommendations(user_id, model_svd, conn, n_recommendations = 12)
         logger.info(f"Recommandations pour l'utilisateur {userId}: {recommendations}")
+        imdb_dict =get_imdb_ids_for_recommands_movies(conn, recommendations)
         imdb_list = [imdb_dict[movie_id] for movie_id in recommendations if movie_id in imdb_dict]
         start_tmdb_time = time.time()
         results = api_tmdb_request(imdb_list)
@@ -485,10 +587,11 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
     nb_of_requests_counter.labels(method='POST', endpoint='/predict/similar_movies').inc()
     try:
         # Récupération des données Streamlit
-        movie_title = movie_finder(user_request.movie_title)  # Trouver le titre du film correspondant
-        movie_id = int(movies['movieid'][movies['title'] == movie_title].iloc[0])
+        movie_title = movie_finder(all_titles,  user_request.movie_title)  # Trouver le titre du film correspondant
+        movie_id = get_movie_id_by_title(conn, movie_title)
         # Récupérer les ID des films recommandés en utilisant la fonction de similarité
         recommendations = get_movie_title_recommendations(model_Knn, movie_id, X, movie_mapper, movie_inv_mapper, 9)
+        imdb_dict =get_imdb_ids_for_recommands_movies(conn, recommendations)
         imdb_list = [imdb_dict[movie_id] for movie_id in recommendations if movie_id in imdb_dict]
         start_tmdb_time = time.time()
         results = api_tmdb_request(imdb_list)
@@ -499,7 +602,7 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
         response_size = len(json.dumps(results))
         # Calculer la durée et enregistrer dans l'histogramme
         duration = time.time() - start_time
-        # Enregistrement des m��triques pour Prometheus
+        # Enregistrement des métriques pour Prometheus
         status_code_counter.labels(status_code="200").inc()  # Compter les réponses réussies
         duration_of_requests_histogram.labels(method='POST', endpoint='/predict/similar_movies', user_id="N/A").observe(duration)  # Enregistrer la durée de la requête
         response_size_histogram.labels(method='POST', endpoint='/predict/similar_movies').observe(response_size)  # Enregistrer la taille de la réponse

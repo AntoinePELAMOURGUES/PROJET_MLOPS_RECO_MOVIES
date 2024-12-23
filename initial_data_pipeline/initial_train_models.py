@@ -146,6 +146,7 @@ def train_matrix_model(df, data_directory, k=10, metric="cosine"):
 
 
 if __name__ == "__main__":
+    print("########## TRAIN MODELS ##########")
     raw_data_relative_path = os.path.join(my_project_directory, "data/raw/silver")
     data_directory = os.path.join(my_project_directory, "data/models")
     ratings = load_data(raw_data_relative_path)

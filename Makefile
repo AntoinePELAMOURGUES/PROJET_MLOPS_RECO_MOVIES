@@ -3,8 +3,12 @@ NAMESPACE1 = api
 NAMESPACE2 = airflow
 NAMESPACE3 = mlflow
 
+# Project_directory
+PROJECT_DIRECTORY = /home/antoine/jul24_cmlops_reco_film
+
+
 # Declare phony targets that do not correspond to files
-.PHONY: help start-all start-minikube install-helm start-airflow start-mlflow start-api delete-pv-airflow check-kube change-namespace-api change-namespace-airflow change-namespace-mlflow clean-kube-api clean-kube-airflow clean-kube-mlflow clean-kube-all
+.PHONY: help start-all start-minikube install-helm start-airflow start-mlflow start-api delete-pv-airflow check-kube change-namespace-api change-namespace-airflow change-namespace-mlflow clean-kube-api clean-kube-airflow clean-kube-mlflow clean-kube-all install-initial-data preprocess-data
 
 # Help command to list all available targets
 help:
@@ -21,6 +25,21 @@ help:
 	@echo "  change-namespace-* - Change current namespace context for Kubernetes"
 	@echo "  clean-kube-*   - Clean up specific namespaces"
 
+##### MAKEFILE INITIAL DATA PIPELINE ######
+
+# Install Python dependencies - download anb preprocessing data
+install-initial-data:
+	sudo apt-get update
+	sudo apt-get install build-essential python3-dev
+	cd initial_data_pipeline && pip install -r requirements.txt
+	cd initial_data_pipeline && cp .env.example .env
+	echo "Please fill the .env file with your project_directory before continue"
+
+preprocess-data:
+	cd initial_data_pipeline && python recover_data.py
+	cd initial_data_pipeline && python build_features.py
+	cd initial_data_pipeline && python initial_train_models.py
+
 ###### MAKEFILE KUBERNETES ######
 
 # Start all services
@@ -28,7 +47,7 @@ start-all: start-minikube start-airflow start-mlflow start-api
 
 # Start Minikube with specified resources
 start-minikube:
-	minikube start --driver=docker --memory=24000 --cpus=4 --mount --mount-string="/home/antoine/PROJET_MLOPS_RECO_MOVIES:/host"
+	minikube start --driver=docker --memory=8000 --cpus=4 --mount --mount-string="$(PROJECT_DIRECTORY):/host"
 
 # Install Helm package manager
 install-helm:
