@@ -148,7 +148,7 @@ def load_model(model_name):
         print(f'Modèle chargé depuis {model_path}')
     return model
 
-def create_X(conn, chunk_size=100000):
+def create_X(chunk_size=100000):
     """
     Génère une matrice creuse avec quatre dictionnaires de mappage à partir d'une base de données,
     sans charger toutes les données en mémoire, en utilisant le chargement par morceaux.
@@ -164,14 +164,16 @@ def create_X(conn, chunk_size=100000):
         movie_mapper: dict that maps movie id's to movie indices
         movie_inv_mapper: dict that maps movie indices to movie id's
     """
+    conn = connect(load_config())
+    cursor = conn.cursor()
 
     # Récupérer les IDs uniques des utilisateurs et des films
     user_query = "SELECT DISTINCT userid FROM ratings"
     movie_query = "SELECT DISTINCT movieid FROM ratings"
 
     # Récupérer les IDs uniques
-    users = [row[0] for row in conn.execute(user_query)]
-    movies = [row[0] for row in conn.execute(movie_query)]
+    users = [row[0] for row in cursor.execute(user_query)]
+    movies = [row[0] for row in cursor.execute(movie_query)]
 
     M = len(users)
     N = len(movies)
@@ -192,10 +194,10 @@ def create_X(conn, chunk_size=100000):
     ratings_query = "SELECT userid, movieid, rating FROM ratings"
 
     # Utiliser un curseur pour récupérer les données par morceaux
-    cursor = conn.execute(ratings_query)
+    rating_chunk = cursor.execute(ratings_query)
 
     while True:
-        chunk = cursor.fetchmany(chunk_size)  # Récupérer un morceau de données
+        chunk = rating_chunk.fetchmany(chunk_size)  # Récupérer un morceau de données
         if not chunk:
             break  # Sortir si aucun enregistrement
 
@@ -214,14 +216,15 @@ def create_X(conn, chunk_size=100000):
 # Fonction pour obtenir des recommandations pour un utilisateur donné
 def get_user_recommendations(user_id: int, model: SVD, conn, n_recommendations: int = 10):
     """Obtenir des recommandations pour un utilisateur donné à partir de la base de données."""
-
+    conn = connect(load_config())
+    cursor = conn.cursor()
     # Récupérer tous les films
     all_movies_query = "SELECT DISTINCT movieid FROM ratings"
-    all_movies = [row[0] for row in conn.execute(all_movies_query)]
+    all_movies = [row[0] for row in cursor.execute(all_movies_query)]
 
     # Obtenir les films déjà évalués par l'utilisateur
     rated_movies_query = f"SELECT movieid FROM ratings WHERE userid = {user_id}"
-    rated_movies = [row[0] for row in conn.execute(rated_movies_query)]
+    rated_movies = [row[0] for row in cursor.execute(rated_movies_query)]
 
     # Trouver les films non évalués par l'utilisateur
     unseen_movies = [movie for movie in all_movies if movie not in rated_movies]
@@ -318,18 +321,22 @@ def movie_finder(all_titles, title):
     closest_match = process.extractOne(title,all_titles)
     return closest_match[0]
 
-def get_movie_id_by_title(conn, user_title):
+def get_movie_id_by_title(user_title):
+    conn = connect(load_config())
+    cursor = conn.cursor()
     query = f"""
     SELECT movieid, title
     FROM movies
     WHERE title = '{user_title}';
     """
-    movie_id = [row[0] for row in conn.execute(query)]
+    movie_id = [row[0] for row in cursor.execute(query)]
     return movie_id
 
 
-def get_best_movies_for_user(conn, user_id, n=3):
+def get_best_movies_for_user(user_id, n=3):
     """Obtenir les meilleurs films notés par un utilisateur donné."""
+    conn = connect(load_config())
+    cursor = conn.cursor()
     query = f"""
     SELECT movieId, rating
     FROM ratings
@@ -338,11 +345,14 @@ def get_best_movies_for_user(conn, user_id, n=3):
     LIMIT {n};
     """
 
-    best_movies = [(row[0], row[1]) for row in conn.execute(query)]
+    best_movies = [(row[0], row[1]) for row in cursor.execute(query)]
     return best_movies  # Retourner une liste de tuples (movieId, rating)
 
-def get_imdb_ids_for_best_movies(conn, best_movies):
+def get_imdb_ids_for_best_movies(best_movies):
     """Récupère les IMDb IDs pour les meilleurs films notés."""
+    conn = connect(load_config())
+    cursor = conn.cursor()
+
     movie_ids = [movie_id for movie_id, _ in best_movies]  # Extraire les movieId des meilleurs films
 
     # Créer une chaîne de caractères avec les IDs pour la clause IN
@@ -356,11 +366,13 @@ def get_imdb_ids_for_best_movies(conn, best_movies):
     """
 
     # Exécuter la requête et créer un dictionnaire pour un accès facile
-    imdb_dict = {row[0]: row[1] for row in conn.execute(query)}
+    imdb_dict = {row[0]: row[1] for row in cursor.execute(query)}
 
     return imdb_dict  # Retourner un dictionnaire {movieid: imdbid}
 
-def get_imdb_ids_for_recommands_movies(conn, movies_list):
+def get_imdb_ids_for_recommands_movies(movies_list):
+    conn = connect(load_config())
+    cursor = conn.cursor()
 
     # Créer une chaîne de caractères avec les IDs pour la clause IN
     movie_ids_str = ', '.join(map(str, movies_list))
@@ -373,7 +385,7 @@ def get_imdb_ids_for_recommands_movies(conn, movies_list):
     """
 
     # Exécuter la requête et créer un dictionnaire pour un accès facile
-    imdb_dict = {row[0]: row[1] for row in conn.execute(query)}
+    imdb_dict = {row[0]: row[1] for row in cursor.execute(query)}
 
     return imdb_dict  # Retourner un dictionnaire {movieid: imdbid}
 
@@ -435,12 +447,13 @@ print("############ DEBUT DES CHARGEMENTS ############")
 # movies = fetch_movies()
 # links = fetch_links()
 conn = connect(load_config())
+cursor = conn.cursor()
 # Chargement d'un modèle SVD pré-entraîné pour les recommandations
 model_svd = load_model('model_SVD.pkl')
 # Chargement de la matrice cosinus similarity
 model_Knn = load_model('model_KNN.pkl')
 # Création de la matrice utilisateur-article
-X, user_mapper, movie_mapper, user_inv_mapper, movie_inv_mapper = create_X(conn, chunk_size=100000)
+X, user_mapper, movie_mapper, user_inv_mapper, movie_inv_mapper = create_X(chunk_size=100000)
 # # Création d'un dataframe pour les liens entre les films et les ID IMDB
 # movies_links_df = movies.merge(links, on = "movieid", how = 'left')
 # # Création de dictionnaires pour faciliter l'accès aux titres et aux couvertures des films par leur ID
@@ -450,7 +463,7 @@ X, user_mapper, movie_mapper, user_inv_mapper, movie_inv_mapper = create_X(conn,
 # Créer un dictionnaire pour un accès rapide
 # imdb_dict = dict(zip(movies_links_df['movieid'], movies_links_df['imdbid']))
 query = "SELECT title FROM movies;"
-all_titles = [row[0] for row in conn.execute(query)]
+all_titles = [row[0] for row in cursor.execute(query)]
 print("FIN DES CHARGEMENTS")
 # ---------------------------------------------------------------
 
@@ -488,8 +501,8 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
     try:
         # Forcer la conversion en int
         user_id = int(userId)
-        best_movies = get_best_movies_for_user(conn, user_id, n=3)
-        imdb_dict = get_imdb_ids_for_best_movies(conn, best_movies)
+        best_movies = get_best_movies_for_user(user_id, n=3)
+        imdb_dict = get_imdb_ids_for_best_movies(best_movies)
         # Créer la liste des IMDb IDs
         imdb_list = [imdb_dict[movie_id] for movie_id, _ in best_movies if movie_id in imdb_dict]
         start_tmdb_time = time.time()
@@ -543,7 +556,7 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
         user_id = int(user_request.userId)
         recommendations = get_user_recommendations(user_id, model_svd, conn, n_recommendations = 12)
         logger.info(f"Recommandations pour l'utilisateur {userId}: {recommendations}")
-        imdb_dict =get_imdb_ids_for_recommands_movies(conn, recommendations)
+        imdb_dict =get_imdb_ids_for_recommands_movies(recommendations)
         imdb_list = [imdb_dict[movie_id] for movie_id in recommendations if movie_id in imdb_dict]
         start_tmdb_time = time.time()
         results = api_tmdb_request(imdb_list)
@@ -588,10 +601,10 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
     try:
         # Récupération des données Streamlit
         movie_title = movie_finder(all_titles,  user_request.movie_title)  # Trouver le titre du film correspondant
-        movie_id = get_movie_id_by_title(conn, movie_title)
+        movie_id = get_movie_id_by_title( movie_title)
         # Récupérer les ID des films recommandés en utilisant la fonction de similarité
         recommendations = get_movie_title_recommendations(model_Knn, movie_id, X, movie_mapper, movie_inv_mapper, 9)
-        imdb_dict =get_imdb_ids_for_recommands_movies(conn, recommendations)
+        imdb_dict =get_imdb_ids_for_recommands_movies(recommendations)
         imdb_list = [imdb_dict[movie_id] for movie_id in recommendations if movie_id in imdb_dict]
         start_tmdb_time = time.time()
         results = api_tmdb_request(imdb_list)
