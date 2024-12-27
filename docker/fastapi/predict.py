@@ -3,7 +3,6 @@ import pandas as pd
 import json
 import pickle
 from surprise.prediction_algorithms.matrix_factorization import SVD
-from scipy.sparse import csr_matrix
 import numpy as np
 from rapidfuzz import process
 from fastapi import APIRouter, HTTPException
@@ -11,13 +10,10 @@ from typing import Dict, Any, Optional
 from prometheus_client import Counter, Histogram, CollectorRegistry
 import time
 from pydantic import BaseModel
-import psycopg2
-from dotenv import load_dotenv
 import requests
 import logging
 from kubernetes import client, config
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import SQLAlchemyError
 
 
@@ -47,76 +43,137 @@ router = APIRouter(
     tags=["predict"],  # Tag pour la documentation
 )
 
+
 # ENSEMBLE DES FONCTIONS UTILISEES
-def load_config():
-    """Charge la configuration de la base de données à partir des variables d'environnement."""
-    return {
-        "host": os.getenv("POSTGRES_HOST"),
-        "database": os.getenv("POSTGRES_DB"),
-        "user": os.getenv("POSTGRES_USER"),
-        "password": os.getenv("POSTGRES_PASSWORD"),
-    }
-
-def connect(config):
-    """Connecte au serveur PostgreSQL et retourne la connexion."""
-    try:
-        conn = psycopg2.connect(**config)
-        print("Connected to the PostgreSQL server.")
-        return conn
-    except (psycopg2.DatabaseError, Exception) as error:
-        print(f"Connection error: {error}")
-        return None
-
-# Créer l'engine une seule fois
-def create_engine_instance():
-    """Crée et retourne une instance de l'engine SQLAlchemy."""
+def connect_to_postgresql():
+    """Charge la configuration de la base de données à partir des variables d'environnement et établit une connexion."""
+    # Charger la configuration depuis les variables d'environnement
     config = {
         "host": os.getenv("POSTGRES_HOST"),
         "database": os.getenv("POSTGRES_DB"),
         "user": os.getenv("POSTGRES_USER"),
         "password": os.getenv("POSTGRES_PASSWORD"),
     }
-    connection_str = f'postgresql+psycopg2://{config["user"]}:{config["password"]}@{config["host"]}/{config["database"]}'
-    return create_engine(connection_str)
 
-# Créer un sessionmaker basé sur l'engine
-engine = create_engine_instance()
-Session = sessionmaker(bind=engine)
+    # Créer la chaîne de connexion
+    connection_str = f'postgresql+psycopg2://{config["user"]}:{config["password"]}@{config["host"]}/{config["database"]}'
+
+    # Créer l'objet engine
+    engine = create_engine(connection_str)
+
+    try:
+        # Tester la connexion
+        connection = engine.connect()
+        print("Connected to the PostgreSQL server.")
+        return engine, connection  # Retourner l'engine et la connexion active
+
+    except SQLAlchemyError as error:
+        print(f"Connection error: {error}")
+        return None, None  # Retourner None en cas d'échec
+
 
 def fetch_movies() -> pd.DataFrame:
     """Récupère les enregistrements de la table movies et les transforme en DataFrame."""
-    query = """ SELECT movieid, title, genres FROM movies """
 
-    # Utiliser le sessionmaker pour gérer les sessions
-    with Session() as session:
+    query = """
+    SELECT movieid, title, genres
+    FROM movies
+    """
+
+    # Établir une connexion à PostgreSQL
+    engine, connection = connect_to_postgresql()
+
+    if connection is not None:
         try:
-            df = pd.read_sql_query(query, con=session.bind)
+            # Utiliser Pandas pour lire directement depuis la base de données
+            df = pd.read_sql_query(query, con=connection)
             print("Enregistrements de la table movies récupérés")
             return df
+
         except SQLAlchemyError as e:
             print(f"Erreur lors de la récupération des enregistrements: {e}")
-            return pd.DataFrame()  # Retourner un DataFrame vide en cas d'erreur
+            raise
+
+        finally:
+            # Fermer la connexion
+            connection.close()
+            print("Connexion fermée.")
+
+    else:
+        print("Échec de la connexion à la base de données.")
+        return pd.DataFrame()  # Retourner un DataFrame vide si la connexion échoue
 
 
-# def fetch_links() -> pd.DataFrame:
-#     """Récupère enregistrements de la table movies et les transforme en DataFrame."""
-#     query = """
-#     SELECT id, movieid, imdbid, tmdbid
-#     FROM links
-#     """
-#     config = load_config()
-#     conn = connect(config)
+def fetch_ratings(chunk_size=1000) -> pd.DataFrame:
+    """Récupère les enregistrements de la table movies et les transforme en DataFrame par morceaux."""
 
-#     if conn is not None:
-#         try:
-#             with conn.cursor() as cur:
-#                 cur.execute(query)
-#                 df = pd.DataFrame(cur.fetchall(), columns=['id', 'movieid', 'imdbid', 'tmdbid'])
-#                 print("Enregistrements table links récupérés")
-#                 return df
-#         except Exception as e:
-#             print(f"Erreur lors de la récupération des enregistrements: {e}")
-#             raise
+    query = """
+    SELECT userid, movieid, rating
+    FROM ratings
+    """
+
+    # Établir une connexion à PostgreSQL
+    engine, connection = connect_to_postgresql()
+
+    if connection is not None:
+        try:
+            # Initialiser une liste pour stocker les morceaux de DataFrame
+            chunks = []
+
+            # Utiliser Pandas pour lire directement depuis la base de données par morceaux
+            for chunk in pd.read_sql_query(query, con=connection, chunksize=chunk_size):
+                chunks.append(chunk)
+                print(f"Chunk récupéré avec {len(chunk)} enregistrements.")
+
+            # Concaténer tous les morceaux en un seul DataFrame
+            df = pd.concat(chunks, ignore_index=True)
+            print("Tous les enregistrements de la table ratings récupérés.")
+            return df
+
+        except SQLAlchemyError as e:
+            print(f"Erreur lors de la récupération des enregistrements: {e}")
+            raise
+
+        finally:
+            # Fermer la connexion
+            connection.close()
+            print("Connexion fermée.")
+
+    else:
+        print("Échec de la connexion à la base de données.")
+        return pd.DataFrame()  # Retourner un DataFrame vide si la connexion échoue
+
+
+def fetch_links() -> pd.DataFrame:
+    """Récupère les enregistrements de la table movies et les transforme en DataFrame."""
+
+    query = """
+    SELECT id, movieid, imdbid, tmdbid
+    FROM links
+    """
+
+    # Établir une connexion à PostgreSQL
+    engine, connection = connect_to_postgresql()
+
+    if connection is not None:
+        try:
+            # Utiliser Pandas pour lire directement depuis la base de données
+            df = pd.read_sql_query(query, con=connection)
+            print("Enregistrements de la table links récupérés")
+            return df
+
+        except SQLAlchemyError as e:
+            print(f"Erreur lors de la récupération des enregistrements: {e}")
+            raise
+
+        finally:
+            # Fermer la connexion
+            connection.close()
+            print("Connexion fermée.")
+
+    else:
+        print("Échec de la connexion à la base de données.")
+        return pd.DataFrame()  # Retourner un DataFrame vide si la connexion échoue
 
 
 # Chargement du dernier modèle
@@ -134,49 +191,30 @@ def load_model(model_name):
 
 
 # Fonction pour obtenir des recommandations pour un utilisateur donné
-def get_user_recommendations(user_id: int, model: SVD, n_recommendations: int = 10):
-    """Obtenir des recommandations pour un utilisateur donné à partir de la base de données."""
-    try:
-        conn = connect(load_config())
-        cursor = conn.cursor()
+def get_user_recommendations(
+    ratings_df, user_id: int, model: SVD, n_recommendations: int = 10
+):
+    """Obtenir des recommandations pour un utilisateur donné."""
+    # Créer un DataFrame contenant tous les films
+    all_movies = ratings_df["movieid"].unique()
 
-        # Récupérer tous les films
-        all_movies_query = "SELECT DISTINCT movieid FROM ratings"
-        all_movies = [row[0] for row in cursor.execute(all_movies_query).fetchall()]
+    # Obtenir les films déjà évalués par l'utilisateur
+    rated_movies = ratings_df[ratings_df["userid"] == user_id]["movieid"].tolist()
 
-        # Obtenir les films déjà évalués par l'utilisateur
-        rated_movies_query = f"SELECT movieid FROM ratings WHERE userid = {user_id}"
-        rated_movies = [row[0] for row in cursor.execute(rated_movies_query).fetchall()]
+    # Trouver les films non évalués par l'utilisateur
+    unseen_movies = [movie for movie in all_movies if movie not in rated_movies]
 
-        # Trouver les films non évalués par l'utilisateur
-        unseen_movies = [movie for movie in all_movies if movie not in rated_movies]
+    # Préparer les prédictions pour les films non évalués
+    predictions = []
+    for movie_id in unseen_movies:
+        pred = model.predict(user_id, movie_id)
+        predictions.append(
+            (movie_id, pred.est)
+        )  # Ajouter l'ID du film et la note prédite
 
-        # Préparer les prédictions pour les films non évalués
-        predictions = []
-
-        for movie_id in unseen_movies:
-            try:
-                pred = model.predict(user_id, movie_id)
-                predictions.append(
-                    (movie_id, pred.est)
-                )  # Ajouter l'ID du film et la note prédite
-            except Exception as e:
-                print(f"Erreur lors de la prédiction pour le film {movie_id}: {e}")
-
-        # Trier les prédictions par note prédite (descendant) et prendre les meilleures n_recommendations
-        top_n = sorted(predictions, key=lambda x: x[1], reverse=True)[
-            :n_recommendations
-        ]
-        top_n = [i[0] for i in top_n]
-
-    except Exception as e:
-        print(f"Une erreur est survenue lors de l'obtention des recommandations : {e}")
-        return []  # Retourner une liste vide en cas d'erreur
-
-    finally:
-        cursor.close()
-        conn.close()
-
+    # Trier les prédictions par note prédite (descendant) et prendre les meilleures n_recommendations
+    top_n = sorted(predictions, key=lambda x: x[1], reverse=True)[:n_recommendations]
+    top_n = [i[0] for i in top_n]
     return top_n  # Retourner les meilleures recommandations
 
 
@@ -231,21 +269,6 @@ def api_tmdb_request(movie_ids):
     return results
 
 
-def get_all_titles():
-    """Récupère tous les titres de films de la base de données."""
-    try:
-        conn = connect(load_config())
-        cursor = conn.cursor()
-
-        query = "SELECT title FROM movies;"
-        all_titles = [row[0] for row in cursor.execute(query).fetchall()]
-
-        return all_titles
-
-    except Exception as e:
-        print(f"Erreur lors de la récupération des titres de films : {e}")
-
-
 # Recherche un titre proche de la requête
 def movie_finder(all_titles, title):
     """
@@ -262,169 +285,6 @@ def movie_finder(all_titles, title):
     return (
         closest_match[0] if closest_match else None
     )  # Retourne None si aucun match n'est trouvé
-
-
-def get_movie_id_by_title(user_title):
-    """
-    Récupère l'ID d'un film à partir de son titre.
-
-    Args:
-        user_title (str): Titre du film recherché.
-
-    Returns:
-        list: Liste contenant l'ID du film correspondant.
-    """
-    try:
-        conn = connect(load_config())
-        cursor = conn.cursor()
-
-        query = f"""
-        SELECT movieid, title
-        FROM movies
-        WHERE title = '{user_title}';
-        """
-
-        movie_id = [
-            row[0] for row in cursor.execute(query).fetchall()
-        ]  # Utiliser fetchall() pour récupérer les résultats
-
-        return movie_id
-
-    except Exception as e:
-        print(f"Erreur lors de la récupération de l'ID du film : {e}")
-        return []  # Retourner une liste vide en cas d'erreur
-
-    finally:
-        cursor.close()
-        conn.close()
-
-
-def get_best_movies_for_user(user_id, n=3):
-    """
-    Obtenir les meilleurs films notés par un utilisateur donné.
-
-    Args:
-        user_id (int): ID de l'utilisateur.
-        n (int): Nombre de films à retourner.
-
-    Returns:
-        list: Liste de tuples contenant (movieId, rating) pour les meilleurs films.
-    """
-    try:
-        conn = connect(load_config())
-        cursor = conn.cursor()
-
-        query = f"""
-        SELECT movieId, rating
-        FROM ratings
-        WHERE userid = {user_id}
-        ORDER BY rating DESC
-        LIMIT {n};
-        """
-
-        best_movies = [
-            (row[0], row[1]) for row in cursor.execute(query).fetchall()
-        ]  # Utiliser fetchall() pour récupérer les résultats
-
-        return best_movies  # Retourner une liste de tuples (movieId, rating)
-
-    except Exception as e:
-        print(
-            f"Erreur lors de la récupération des meilleurs films pour l'utilisateur {user_id}: {e}"
-        )
-        return []  # Retourner une liste vide en cas d'erreur
-
-    finally:
-        cursor.close()
-        conn.close()
-
-
-def get_imdb_ids_for_best_movies(best_movies):
-    """
-    Récupère les IMDb IDs pour les meilleurs films notés.
-
-    Args:
-        best_movies (list): Liste de tuples contenant (movieId, rating).
-
-    Returns:
-        dict: Dictionnaire {movieid: imdbid} pour les meilleurs films.
-    """
-    try:
-        conn = connect(load_config())
-        cursor = conn.cursor()
-
-        movie_ids = [
-            movie_id for movie_id, _ in best_movies
-        ]  # Extraire les movieId des meilleurs films
-
-        # Créer une chaîne de caractères avec les IDs pour la clause IN
-        movie_ids_str = ", ".join(map(str, movie_ids))
-
-        # Requête SQL pour récupérer les IMDb IDs
-        query = f"""
-        SELECT movieid, imdbid
-        FROM links
-        WHERE movieid IN ({movie_ids_str});
-        """
-
-        # Exécuter la requête et créer un dictionnaire pour un accès facile
-        imdb_dict = {
-            row[0]: row[1] for row in cursor.execute(query).fetchall()
-        }  # Utiliser fetchall() pour récupérer les résultats
-
-        return imdb_dict  # Retourner un dictionnaire {movieid: imdbid}
-
-    except Exception as e:
-        print(
-            f"Erreur lors de la récupération des IMDb IDs pour les meilleurs films : {e}"
-        )
-        return {}  # Retourner un dictionnaire vide en cas d'erreur
-
-    finally:
-        cursor.close()
-        conn.close()
-
-
-def get_imdb_ids_for_recommand_movies(movies_list):
-    """
-    Récupère les IMDb IDs pour une liste donnée de films.
-
-    Args:
-        movies_list (list): Liste des IDs des films.
-
-    Returns:
-        dict: Dictionnaire {movieid: imdbid} pour les films spécifiés.
-
-    """
-
-    try:
-        conn = connect(load_config())
-        cursor = conn.cursor()
-
-        # Créer une chaîne de caractères avec les IDs pour la clause IN
-        movie_ids_str = ", ".join(map(str, movies_list))
-
-        # Requête SQL pour récupérer les IMDb IDs
-        query = f"""
-        SELECT movieid, imdbid
-        FROM links
-        WHERE movieid IN ({movie_ids_str});
-        """
-
-        # Exécuter la requête et créer un dictionnaire pour un accès facile
-        imdb_dict = {
-            row[0]: row[1] for row in cursor.execute(query).fetchall()
-        }  # Utiliser fetchall() pour récupérer les résultats
-
-        return imdb_dict  # Retourner un dictionnaire {movieid: imdbid}
-
-    except Exception as e:
-        print(f"Erreur lors de la récupération des IMDb IDs : {e}")
-        return {}  # Retourner un dictionnaire vide en cas d'erreur
-
-    finally:
-        cursor.close()
-        conn.close()
 
 
 # ---------------------------------------------------------------
@@ -486,26 +346,25 @@ tmdb_request_duration_histogram = Histogram(
 
 # CHARGEMENT DES DONNEES AU DEMARRAGE DE API
 print("############ DEBUT DES CHARGEMENTS ############")
-# # Chargement de nos dataframe
-# ratings = fetch_ratings()
+# Chargement de nos dataframe
+ratings = fetch_ratings()
 movies = fetch_movies()
-# links = fetch_links()
+links = fetch_links()
 # Chargement d'un modèle SVD pré-entraîné pour les recommandations
 model_svd = load_model("model_SVD.pkl")
 # Chargement de la matrice cosinus similarity
 similarity_cosinus = load_model("cosine_similarity_matrix.pkl")
-
+# Création d'un dataframe pour les liens entre les films et les ID IMDB
+movies_links_df = movies.merge(links, on="movieid", how="left")
+# Création de dictionnaires pour faciliter l'accès aux titres et aux couvertures des films par leur ID
 movie_idx = dict(zip(movies["title"], list(movies.index)))
-
-# # Création d'un dataframe pour les liens entre les films et les ID IMDB
-# movies_links_df = movies.merge(links, on = "movieid", how = 'left')
-# # Création de dictionnaires pour faciliter l'accès aux titres et aux couvertures des films par leur ID
-# movie_idx = dict(zip(movies['title'], list(movies.index)))
-# # Création de dictionnaires pour accéder facilement aux titres et aux couvertures des films par leur ID
-# movie_titles = dict(zip(movies['movieid'], movies['title']))
+# Création de dictionnaires pour accéder facilement aux titres et aux couvertures des films par leur ID
+movie_titles = dict(zip(movies["movieid"], movies["title"]))
 # Créer un dictionnaire pour un accès rapide
-# imdb_dict = dict(zip(movies_links_df['movieid'], movies_links_df['imdbid']))
-all_titles = get_all_titles()
+imdb_dict = dict(zip(movies_links_df["movieid"], movies_links_df["imdbid"]))
+# Créer une liste de tous les titres de films
+all_titles = movies["title"].tolist()
+
 print("############ FIN DES CHARGEMENTS ############")
 # ---------------------------------------------------------------
 
@@ -542,11 +401,13 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
     try:
         # Forcer la conversion en int
         user_id = int(userId)
-        best_movies = get_best_movies_for_user(user_id, n=3)
-        imdb_dict = get_imdb_ids_for_best_movies(best_movies)
-        # Créer la liste des IMDb IDs
+        df_user = ratings[ratings["userid"] == user_id]
+        df_user = df_user.sort_values(by="rating", ascending=False)
+        best_movies = df_user.head(3)
         imdb_list = [
-            imdb_dict[movie_id] for movie_id, _ in best_movies if movie_id in imdb_dict
+            imdb_dict[movie_id]
+            for movie_id in best_movies["movieid"]
+            if movie_id in imdb_dict
         ]
         start_tmdb_time = time.time()
         results = api_tmdb_request(imdb_list)
@@ -619,10 +480,9 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
         # Forcer la conversion en int
         user_id = int(user_request.userId)
         recommendations = get_user_recommendations(
-            user_id, model_svd, n_recommendations=12
+            ratings, user_id, model_svd, n_recommendations=12
         )
         logger.info(f"Recommandations pour l'utilisateur {userId}: {recommendations}")
-        imdb_dict = get_imdb_ids_for_recommand_movies(recommendations)
         imdb_list = [
             imdb_dict[movie_id] for movie_id in recommendations if movie_id in imdb_dict
         ]
@@ -691,13 +551,13 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
     try:
         # # Trouver le titre du film correspondant
         movie_title = movie_finder(all_titles, user_request.movie_title)
+        logger.info(f"film correspondant dans notre base de données: {movie_title}")
         # # Trouver l'index du film correspondant
         movie_idx = movie_idx[movie_title]
         # Récupérer les ID des films recommandés en utilisant la fonction de similarité
         recommendations = get_content_based_recommendations(
             movie_title, movie_idx, similarity_cosinus, n_recommendations=12
         )
-        imdb_dict = get_imdb_ids_for_recommand_movies(recommendations)
         imdb_list = [
             imdb_dict[movie_id] for movie_id in recommendations if movie_id in imdb_dict
         ]

@@ -1,6 +1,6 @@
 *.csv
 *.pkl
-./kubernetes/airflow/logs/
+kubernetes/airflow/logs/
 ./prometheus/logs/
 data/
 # Byte-compiled / optimized / DLL files
