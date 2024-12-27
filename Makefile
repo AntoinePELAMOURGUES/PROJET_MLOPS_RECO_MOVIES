@@ -2,9 +2,10 @@
 NAMESPACE1 = api
 NAMESPACE2 = airflow
 NAMESPACE3 = mlflow
+NAMESPACE4 = prom
 
 # Project_directory
-PROJECT_DIRECTORY = /home/antoine/PROJET_MLOPS_RECO_MOVIES
+PROJECT_DIRECTORY = /home/antoine/jul24_cmlops_reco_film
 
 
 # Declare phony targets that do not correspond to files
@@ -83,27 +84,23 @@ start-mlflow:
 	helm install mlf-ts bitnami/mlflow --namespace $(NAMESPACE3) --create-namespace
 	kubectl apply -f kubernetes/persistent-volumes/mlflow-storage-pv.yml
 	kubectl apply -f kubernetes/persistent-volumes/mlflow-storage-pvc.yml
-
 	kubectl apply -f kubernetes/services/mlflow-service.yml
 
 # Deploy API services (FastAPI and Streamlit)
 start-api:
 	kubectl create namespace $(NAMESPACE1) || true
 	kubectl apply -f kubernetes/persistent-volumes/models-storage-pv.yml
-	kubectl apply -f kubernetes/persistent-volumes/grafana-pv.yml
-	kubectl apply -f kubernetes/persistent-volumes/prometheus-pv.yml
 	kubectl apply -f kubernetes/persistent-volumes/models-storage-pvc.yml
-	kubectl apply -f kubernetes/persistent-volumes/grafana-pvc.yml
-	kubectl apply -f kubernetes/persistent-volumes/prometheus-pvc.yml
 	kubectl apply -f kubernetes/secrets/api-secrets.yaml
-	kubectl apply -f kubernetes/configmaps/prometheus-configmaps.yml
-	kubectl apply -f kubernetes/configmaps/grafana-configmaps.yml
 	kubectl apply -f kubernetes/deployments/fastapi-deployment.yml
 	kubectl apply -f kubernetes/deployments/streamlit-deployment.yml
-	kubectl apply -f kubernetes/deployments/prometheus-deployment.yml
-	kubectl apply -f kubernetes/deployments/grafana-deployment.yml
-	kubectl apply -f kubernetes/deployments/node-exporter-deployment.yml
 	kubectl apply -f kubernetes/services/api-service.yml
+
+start-prometheus:
+	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+	helm repo update
+	helm install prometheus prometheus-community/kube-prometheus-stack --namespace $(NAMESPACE4) --create-namespace
+
 
 # Delete persistent volumes for Airflow (if they exist)
 delete-pv-airflow:

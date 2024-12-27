@@ -52,6 +52,13 @@ spec:
               value: "false"
           ports:
             - containerPort: 8000
+          resources:
+            requests:
+              memory: "8192Mi"
+              cpu: "1"
+            limits:
+              memory: "8Gi"
+              cpu: "4"
           volumeMounts:
             - name: models-storage-pvc
               mountPath: /models

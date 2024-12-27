@@ -17,6 +17,7 @@ import requests
 import logging
 from kubernetes import client, config
 from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import SQLAlchemyError
 
 
@@ -46,7 +47,6 @@ router = APIRouter(
     tags=["predict"],  # Tag pour la documentation
 )
 
-
 # ENSEMBLE DES FONCTIONS UTILISEES
 def load_config():
     """Charge la configuration de la base de données à partir des variables d'environnement."""
@@ -56,7 +56,6 @@ def load_config():
         "user": os.getenv("POSTGRES_USER"),
         "password": os.getenv("POSTGRES_PASSWORD"),
     }
-
 
 def connect(config):
     """Connecte au serveur PostgreSQL et retourne la connexion."""
@@ -68,64 +67,35 @@ def connect(config):
         print(f"Connection error: {error}")
         return None
 
-
-def connect_to_postgresql():
-    """Charge la configuration de la base de données à partir des variables d'environnement et établit une connexion."""
-    # Charger la configuration depuis les variables d'environnement
+# Créer l'engine une seule fois
+def create_engine_instance():
+    """Crée et retourne une instance de l'engine SQLAlchemy."""
     config = {
         "host": os.getenv("POSTGRES_HOST"),
         "database": os.getenv("POSTGRES_DB"),
         "user": os.getenv("POSTGRES_USER"),
         "password": os.getenv("POSTGRES_PASSWORD"),
     }
-
-    # Créer la chaîne de connexion
     connection_str = f'postgresql+psycopg2://{config["user"]}:{config["password"]}@{config["host"]}/{config["database"]}'
+    return create_engine(connection_str)
 
-    # Créer l'objet engine
-    engine = create_engine(connection_str)
-
-    try:
-        # Tester la connexion
-        connection = engine.connect()
-        print("Connected to the PostgreSQL server.")
-        return engine, connection  # Retourner l'engine et la connexion active
-
-    except SQLAlchemyError as error:
-        print(f"Connection error: {error}")
-        return None, None  # Retourner None en cas d'échec
-
+# Créer un sessionmaker basé sur l'engine
+engine = create_engine_instance()
+Session = sessionmaker(bind=engine)
 
 def fetch_movies() -> pd.DataFrame:
     """Récupère les enregistrements de la table movies et les transforme en DataFrame."""
+    query = """ SELECT movieid, title, genres FROM movies """
 
-    query = """
-    SELECT movieid, title, genres
-    FROM movies
-    """
-
-    # Établir une connexion à PostgreSQL
-    engine, connection = connect_to_postgresql()
-
-    if connection is not None:
+    # Utiliser le sessionmaker pour gérer les sessions
+    with Session() as session:
         try:
-            # Utiliser Pandas pour lire directement depuis la base de données
-            df = pd.read_sql_query(query, con=connection)
+            df = pd.read_sql_query(query, con=session.bind)
             print("Enregistrements de la table movies récupérés")
             return df
-
         except SQLAlchemyError as e:
             print(f"Erreur lors de la récupération des enregistrements: {e}")
-            raise
-
-        finally:
-            # Fermer la connexion
-            connection.close()
-            print("Connexion fermée.")
-
-    else:
-        print("Échec de la connexion à la base de données.")
-        return pd.DataFrame()  # Retourner un DataFrame vide si la connexion échoue
+            return pd.DataFrame()  # Retourner un DataFrame vide en cas d'erreur
 
 
 # def fetch_links() -> pd.DataFrame:
