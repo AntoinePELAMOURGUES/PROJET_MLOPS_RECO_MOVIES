@@ -1,20 +1,22 @@
 import os
 import psycopg2
 
+
 def load_config():
     """Charge la configuration de la base de données à partir des variables d'environnement."""
     return {
-        'host': os.getenv('POSTGRES_HOST'),
-        'database': os.getenv('POSTGRES_DB'),
-        'user': os.getenv('POSTGRES_USER'),
-        'password': os.getenv('POSTGRES_PASSWORD')
+        "host": os.getenv("POSTGRES_HOST"),
+        "database": os.getenv("POSTGRES_DB"),
+        "user": os.getenv("POSTGRES_USER"),
+        "password": os.getenv("POSTGRES_PASSWORD"),
     }
+
 
 def connect(config):
     """Connecte au serveur PostgreSQL et retourne la connexion."""
     try:
         conn = psycopg2.connect(**config)
-        print('Connected to the PostgreSQL server.')
+        print("Connected to the PostgreSQL server.")
         return conn
     except (psycopg2.DatabaseError, Exception) as error:
         print(f"Connection error: {error}")
@@ -56,6 +58,7 @@ CREATE TABLE IF NOT EXISTS users (
     hached_password VARCHAR(300) NOT NULL
 );"""
 
+
 def create_tables(conn):
     """Crée les tables dans la base de données."""
     cursor = conn.cursor()
@@ -70,6 +73,7 @@ def create_tables(conn):
         print(f"Error creating tables: {e}")
     finally:
         cursor.close()
+
 
 def main():
     print("Initializing the database...")
@@ -88,7 +92,6 @@ def main():
         conn.close()
     else:
         print("Unable to connect to the database.")
-
 
 
 if __name__ == "__main__":

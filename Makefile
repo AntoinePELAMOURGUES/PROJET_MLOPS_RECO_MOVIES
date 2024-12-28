@@ -5,7 +5,7 @@ NAMESPACE3 = mlflow
 NAMESPACE4 = prom
 
 # Project_directory
-PROJECT_DIRECTORY = /home/antoine/jul24_cmlops_reco_film
+PROJECT_DIRECTORY = /home/antoine/PROJET_MLOPS_RECO_MOVIES
 
 
 # Declare phony targets that do not correspond to files

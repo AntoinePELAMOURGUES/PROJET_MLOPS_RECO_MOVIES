@@ -9,6 +9,8 @@ COPY ./requirements.txt ./requirements.txt
 
 COPY ./init_db.py ./init_db.py
 
+COPY ./tests ./tests
+
 RUN pip install --no-cache-dir -r requirements.txt
 
 CMD ["python", "init_db.py"]
