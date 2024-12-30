@@ -9,7 +9,7 @@ PROJECT_DIRECTORY = /home/antoine/PROJET_MLOPS_RECO_MOVIES
 
 
 # Declare phony targets that do not correspond to files
-.PHONY: help start-all start-minikube install-helm start-airflow start-mlflow start-api delete-pv-airflow check-kube change-namespace-api change-namespace-airflow change-namespace-mlflow clean-kube-api clean-kube-airflow clean-kube-mlflow clean-kube-all install-initial-data preprocess-data
+.PHONY: help start-all start-minikube install-helm start-airflow start-mlflow start-api delete-pv-airflow check-kube change-namespace-api change-namespace-airflow change-namespace-mlflow clean-kube-api clean-kube-airflow clean-kube-mlflow clean-kube-all install-initial-data preprocess-data start-prometheus
 
 # Help command to list all available targets
 help:
@@ -99,7 +99,7 @@ start-api:
 start-prometheus:
 	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 	helm repo update
-	helm install prometheus prometheus-community/kube-prometheus-stack --namespace $(NAMESPACE4) --create-namespace
+	helm install prometheus prometheus-community/kube-prometheus-stack --namespace $(NAMESPACE4) --create-namespace -f kubernetes/prometheus/values.yaml
 
 
 # Delete persistent volumes for Airflow (if they exist)

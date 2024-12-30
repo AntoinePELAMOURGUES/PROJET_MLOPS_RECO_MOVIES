@@ -1,0 +1,11 @@
+scrape_configs:
+  - job_name: 'api-services'
+    kubernetes_sd_configs:
+      - role: endpoints
+        namespaces:
+          names:
+            - api
+    relabel_configs:
+      - source_labels: [__meta_kubernetes_service_name]
+        action: keep
+        regex: fastapi|streamlit  # Remplacez par les noms de vos services

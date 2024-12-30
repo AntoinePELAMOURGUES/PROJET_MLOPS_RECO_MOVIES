@@ -60,6 +60,12 @@ def train_SVD_model(df, data_directory) -> tuple:
     reader = Reader(rating_scale=(0.5, 5))
     data = Dataset.load_from_df(df[["userid", "movieid", "rating"]], reader=reader)
 
+    # Vérifier que le DataFrame n'est pas vide
+    if len(df) == 0:
+        raise ValueError(
+            "Le DataFrame est vide et ne peut pas être utilisé pour l'entraînement."
+        )
+
     # Diviser les données en ensembles d'entraînement et de test
     trainset, testset = train_test_split(data, test_size=0.25)
 

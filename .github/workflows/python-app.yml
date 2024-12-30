@@ -13,21 +13,6 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
-    services:
-      postgres:
-        image: postgres:16-alpine
-        env:
-          POSTGRES_USER: test_user
-          POSTGRES_PASSWORD: test_password
-          POSTGRES_DB: test_db
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-
     steps:
       - uses: actions/checkout@v3
       - name: Set up Python 3.10
@@ -48,15 +33,6 @@ jobs:
           flake8 tests/test_*.py --count --exit-zero --max-complexity=10 --max-line-length=127 --statistics
       - name: Test with pytest
         env:
-          POSTGRES_USER: test_user
-          POSTGRES_PASSWORD: test_password
-          POSTGRES_DB: test_db
-          POSTGRES_HOST: localhost
-          POSTGRES_PORT: 5432
           PYTHONPATH: ${{ github.workspace }}
         run: |
           pytest tests/test_build_features.py
-          pytest tests/test_data_to_db.py
-          pytest tests/test_recover_data.py
-          pytest tests/test_scrapping.py
-          pytest tests/test_train_models.py

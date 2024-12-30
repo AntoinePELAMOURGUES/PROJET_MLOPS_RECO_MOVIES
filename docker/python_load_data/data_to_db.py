@@ -71,12 +71,13 @@ def execute_query_psql(query, config):
         return 0
 
 
-def upsert_to_psql(table, df):
+def upsert_to_psql(table, df, config):
     """Insère des enregistrements dans une table.
 
     Args:
         table: La table SQLAlchemy cible.
         df (pd.DataFrame): DataFrame contenant les données à insérer.
+        config: La configuration de la base de données.
     """
 
     # Préparation des données pour l'insertion
@@ -107,7 +108,7 @@ if __name__ == "__main__":
             for chunk in pd.read_csv(
                 filename, chunksize=1000
             ):  # Lire par morceaux de 1000 lignes
-                upsert_to_psql(table, chunk)
+                upsert_to_psql(table, chunk, config)
             print(f"Finished processing {filename}")
 
         except FileNotFoundError as e:
