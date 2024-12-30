@@ -3,13 +3,13 @@ import requests
 import json
 
 # Initialisation des variables de session si elles n'existent pas
-if 'is_logged_in' not in st.session_state:
+if "is_logged_in" not in st.session_state:
     st.session_state.is_logged_in = False
-if 'token' not in st.session_state:
+if "token" not in st.session_state:
     st.session_state.token = None
-if 'user_id' not in st.session_state:
+if "user_id" not in st.session_state:
     st.session_state.user_id = None
-if 'username' not in st.session_state:
+if "username" not in st.session_state:
     st.session_state.username = None
 
 st.title("Authentification")
@@ -26,10 +26,12 @@ with tabs[0]:
     with st.form("registration_form", clear_on_submit=True):
         st.header("Inscription")
         st.write("Règles de sécurité:")
-        st.markdown("""
+        st.markdown(
+            """
                     - Le nom d'utilisateur ne doit contenir que des lettres, chiffres et underscores.
                     - Le mot de passe doit contenir au moins 12 caractères, un chiffre, une majuscule et un cartère spécial.
-                    """)
+                    """
+        )
         username = st.text_input("Nom d'utilisateur")
         email = st.text_input("Email")
         password = st.text_input("Mot de passe", type="password")
@@ -39,13 +41,24 @@ with tabs[0]:
             # Convertir le nom d'utilisateur en minuscules avant l'envoi
             normalized_username = username.lower()
 
-            response = requests.post("http://fastapi/auth/", json={"username": normalized_username, "email": email, "password": password})
+            response = requests.post(
+                "http://fastapi/auth/",
+                json={
+                    "username": normalized_username,
+                    "email": email,
+                    "password": password,
+                },
+            )
             if response.status_code == 201:  # Utilisateur créé avec succès
                 st.success(f"Inscription réussie !")
                 st.balloons()
 
-            elif response.status_code == 400:  # Erreur d'utilisateur déjà enregistré ou autres erreurs de validation
-                error_message = response.json().get("detail", "Une erreur est survenue.")
+            elif (
+                response.status_code == 400
+            ):  # Erreur d'utilisateur déjà enregistré ou autres erreurs de validation
+                error_message = response.json().get(
+                    "detail", "Une erreur est survenue."
+                )
                 st.error(error_message)  # Afficher le message d'erreur détaillé
             else:  # Autres erreurs
                 st.error("Une erreur est survenue. Veuillez réessayer.")
@@ -62,15 +75,16 @@ with tabs[1]:
             try:
                 response = requests.post(
                     "http://fastapi/auth/token",
-                    data={"username": email, "password": password})
+                    data={"username": email, "password": password},
+                )
 
                 if response.status_code == 200:
                     result = response.json()
-                    st.session_state.token = result['access_token']
+                    st.session_state.token = result["access_token"]
                     st.session_state.is_logged_in = True
                     st.success(f"Connexion réussie!")
                     st.balloons()
-                    st.switch_page("pages/5_Application.py")
+                    st.switch_page("pages/2_Application.py")
                 else:
                     st.error("Erreur d'authentification")
 

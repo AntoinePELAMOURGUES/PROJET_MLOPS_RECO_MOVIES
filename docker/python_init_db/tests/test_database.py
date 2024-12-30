@@ -1,7 +1,7 @@
 import os
 import pytest
 import psycopg
-from app.init_db import load_config, connect, create_tables
+from init_db import load_config, connect, create_tables
 from testcontainers.postgres import PostgresContainer
 
 

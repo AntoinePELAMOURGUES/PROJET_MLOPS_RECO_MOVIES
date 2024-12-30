@@ -115,7 +115,7 @@ def train_cosine_similarity(movies, data_directory):
         print(genres)
 
         # Calculer la similarité cosinus
-        cosine_sim = cosine_similarity(genres)
+        cosine_sim = cosine_similarity(genres, genres)
         print(f"Dimensions de notre matrice de similarité cosinus : {cosine_sim.shape}")
     else:
         print("La colonne 'genres' n'existe pas dans le DataFrame.")
@@ -136,7 +136,7 @@ if __name__ == "__main__":
     data_directory = os.path.join(my_project_directory, "data/models")
     movies = pd.read_csv(f"{raw_data_relative_path}/processed_movies.csv")
     ratings, movies = load_data(raw_data_relative_path)
-    print("Entrainement du modèle SVD")
-    train_SVD_model(ratings, data_directory)
+    # print("Entrainement du modèle SVD")
+    # train_SVD_model(ratings, data_directory)
     print("Création de la matrice de similarité cosinus en fonction des genres")
     train_cosine_similarity(movies, data_directory)
