@@ -10,6 +10,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Start Docker
+        run: sudo service docker start
+
+      - name: Check Docker Socket
+        run: test -S /var/run/docker.sock
+
+      - name: Set Docker Permissions
+        run: sudo chmod 666 /var/run/docker.sock
+
       - name: Checkout repository
         uses: actions/checkout@v2
 
