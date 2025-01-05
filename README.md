@@ -30,6 +30,7 @@ Assurez-vous d'avoir installé les éléments suivants sur votre machine :
 1. [Python](https://www.python.org/) >= 3.9
 2. [Docker Desktop](https://docs.docker.com/desktop/)
 3. [Minikube](https://minikube.sigs.k8s.io/docs/start/)
+4. [Helm](https://helm.sh/)
 
 ## :computer: Installation
 
