@@ -1,9 +1,7 @@
 <h1>RECOMMANDATION DE FILMS</h1>
-<h1>RECOMMANDATION DE FILMS</h1>
 
 ![Project Logo](reco_movies_project.jpeg)
 
-<h2>:diamond_shape_with_a_dot_inside:Introduction</h2>
 <h2>:diamond_shape_with_a_dot_inside:Introduction</h2>
 Dans le cadre de notre formation en Machine Learning Operations (MLOps) dispensée par Datascientest, nous avons l'opportunité d'explorer la mise en production et le monitoring d'une API dédiée à la recommandation de films. Ce projet vise à allier théorie et pratique en développant une solution robuste qui non seulement prédit les films susceptibles d'intéresser les utilisateurs, mais assure également un suivi constant de la performance de l'API.
 
@@ -32,6 +30,7 @@ Assurez-vous d'avoir installé les éléments suivants sur votre machine :
 1. [Python](https://www.python.org/) >= 3.9
 2. [Docker Desktop](https://docs.docker.com/desktop/)
 3. [Minikube](https://minikube.sigs.k8s.io/docs/start/)
+4. [Helm](https://helm.sh/)
 
 ## :computer: Installation
 
