@@ -108,7 +108,7 @@ Rendez-vous dans "Add New Server", entrez dans Général le nom que vous souhait
 - **Username** : postgres
 - **Password** : postgres
 
-3. Lancement de Mlflow, Fastapi, Streamlit, Prometheus & Grafana
+3. Lancement de Mlflow, Fastapi, Streamlit
 
 ```bash
 make start-mlflow
@@ -118,7 +118,7 @@ make start-mlflow
 make start-api
 ```
 
-## 👓 Visualisation de notre API et des données monitorées
+## 👓 Visualisation de notre API
 
 1. Visualisation de notre Api de recommandation:
 
@@ -126,17 +126,18 @@ make start-api
 minikube service streamlit -n api
 ```
 
-2. Visualisation de nos logs:
-
-```bash
-minikube service grafana -n api
-```
-
-3. Visualisation de fastapi:
+2. Visualisation de fastapi:
 
 ```bash
 minikube service fastapi -n api
 ```
+
+## 👀 Monitoring des logs
+
+```bash
+make start-prometheus
+```
+
 
 ## :skull: Arrêt de l'application
 
