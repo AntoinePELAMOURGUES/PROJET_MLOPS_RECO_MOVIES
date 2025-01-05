@@ -27,14 +27,23 @@ logger = logging.getLogger(__name__)
 config.load_incluster_config()
 
 # Définir le volume et le montage du volume
-volume = client.V1Volume(
+volume1 = client.V1Volume(
     name="model-storage",
     persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(
         claim_name="model-storage-pvc"
     ),
 )
 
-volume_mount = client.V1VolumeMount(name="model-storage", mount_path="/models")
+volume2 = client.V1Volume(
+    name="raw-storage",
+    persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(
+        claim_name="raw-storage-pvc"
+    ),
+)
+
+volume1_mount = client.V1VolumeMount(name="model-storage", mount_path="/models")
+
+volume2_mount = client.V1VolumeMount(name="raw-storage", mount_path="/data")
 
 # ROUTEUR POUR GERER LES ROUTES PREDICT
 
@@ -45,135 +54,158 @@ router = APIRouter(
 
 
 # ENSEMBLE DES FONCTIONS UTILISEES
-def connect_to_postgresql():
-    """Charge la configuration de la base de données à partir des variables d'environnement et établit une connexion."""
-    # Charger la configuration depuis les variables d'environnement
-    config = {
-        "host": os.getenv("POSTGRES_HOST"),
-        "database": os.getenv("POSTGRES_DB"),
-        "user": os.getenv("POSTGRES_USER"),
-        "password": os.getenv("POSTGRES_PASSWORD"),
-    }
 
-    # Créer la chaîne de connexion
-    connection_str = f'postgresql+psycopg2://{config["user"]}:{config["password"]}@{config["host"]}/{config["database"]}'
 
-    # Créer l'objet engine
-    engine = create_engine(connection_str)
-
+def load_csv_to_df(file_path: str, chunk_size: int = 2000) -> pd.DataFrame:
+    """Charge un fichier CSV en DataFrame par morceaux."""
     try:
-        # Tester la connexion
-        connection = engine.connect()
-        print("Connected to the PostgreSQL server.")
-        return engine, connection  # Retourner l'engine et la connexion active
+        # Initialiser une liste pour stocker les morceaux
+        chunks = []
 
-    except SQLAlchemyError as error:
-        print(f"Connection error: {error}")
-        return None, None  # Retourner None en cas d'échec
+        # Lire le fichier CSV par morceaux
+        for chunk in pd.read_csv(file_path, chunksize=chunk_size):
+            # Traitez chaque morceau ici si nécessaire
+            chunks.append(chunk)
 
+        # Concaténer tous les morceaux en un seul DataFrame
+        df = pd.concat(chunks, ignore_index=True)
+        print(f"Chargement du fichier {file_path} réussi.")
+        return df
 
-def fetch_movies() -> pd.DataFrame:
-    """Récupère les enregistrements de la table movies et les transforme en DataFrame."""
-
-    query = """
-    SELECT movieid, title, genres
-    FROM movies
-    """
-
-    # Établir une connexion à PostgreSQL
-    engine, connection = connect_to_postgresql()
-
-    if connection is not None:
-        try:
-            # Utiliser Pandas pour lire directement depuis la base de données
-            df = pd.read_sql_query(query, con=connection)
-            print("Enregistrements de la table movies récupérés")
-            return df
-
-        except SQLAlchemyError as e:
-            print(f"Erreur lors de la récupération des enregistrements: {e}")
-            raise
-
-        finally:
-            # Fermer la connexion
-            connection.close()
-            print("Connexion fermée.")
-
-    else:
-        print("Échec de la connexion à la base de données.")
-        return pd.DataFrame()  # Retourner un DataFrame vide si la connexion échoue
+    except FileNotFoundError:
+        print(f"Le fichier {file_path} est introuvable.")
+        return pd.DataFrame()  # Retourner un DataFrame vide en cas d'erreur
 
 
-def fetch_ratings(chunk_size=1000) -> pd.DataFrame:
-    """Récupère les enregistrements de la table movies et les transforme en DataFrame par morceaux."""
+# def connect_to_postgresql():
+#     """Charge la configuration de la base de données à partir des variables d'environnement et établit une connexion."""
+#     # Charger la configuration depuis les variables d'environnement
+#     config = {
+#         "host": os.getenv("POSTGRES_HOST"),
+#         "database": os.getenv("POSTGRES_DB"),
+#         "user": os.getenv("POSTGRES_USER"),
+#         "password": os.getenv("POSTGRES_PASSWORD"),
+#     }
 
-    query = """
-    SELECT userid, movieid, rating
-    FROM ratings
-    """
+#     # Créer la chaîne de connexion
+#     connection_str = f'postgresql+psycopg2://{config["user"]}:{config["password"]}@{config["host"]}/{config["database"]}'
 
-    # Établir une connexion à PostgreSQL
-    engine, connection = connect_to_postgresql()
+#     # Créer l'objet engine
+#     engine = create_engine(connection_str)
 
-    if connection is not None:
-        try:
-            # Initialiser une liste pour stocker les morceaux de DataFrame
-            chunks = []
+#     try:
+#         # Tester la connexion
+#         connection = engine.connect()
+#         print("Connected to the PostgreSQL server.")
+#         return engine, connection  # Retourner l'engine et la connexion active
 
-            # Utiliser Pandas pour lire directement depuis la base de données par morceaux
-            for chunk in pd.read_sql_query(query, con=connection, chunksize=chunk_size):
-                chunks.append(chunk)
-                print(f"Chunk récupéré avec {len(chunk)} enregistrements.")
-
-            # Concaténer tous les morceaux en un seul DataFrame
-            df = pd.concat(chunks, ignore_index=True)
-            print("Tous les enregistrements de la table ratings récupérés.")
-            return df
-
-        except SQLAlchemyError as e:
-            print(f"Erreur lors de la récupération des enregistrements: {e}")
-            raise
-
-        finally:
-            # Fermer la connexion
-            connection.close()
-            print("Connexion fermée.")
-
-    else:
-        print("Échec de la connexion à la base de données.")
-        return pd.DataFrame()  # Retourner un DataFrame vide si la connexion échoue
+#     except SQLAlchemyError as error:
+#         print(f"Connection error: {error}")
+#         return None, None  # Retourner None en cas d'échec
 
 
-def fetch_links() -> pd.DataFrame:
-    """Récupère les enregistrements de la table movies et les transforme en DataFrame."""
+# def fetch_movies() -> pd.DataFrame:
+#     """Récupère les enregistrements de la table movies et les transforme en DataFrame."""
 
-    query = """
-    SELECT id, movieid, imdbid, tmdbid
-    FROM links
-    """
+#     query = """
+#     SELECT movieid, title, genres
+#     FROM movies
+#     """
 
-    # Établir une connexion à PostgreSQL
-    engine, connection = connect_to_postgresql()
+#     # Établir une connexion à PostgreSQL
+#     engine, connection = connect_to_postgresql()
 
-    if connection is not None:
-        try:
-            # Utiliser Pandas pour lire directement depuis la base de données
-            df = pd.read_sql_query(query, con=connection)
-            print("Enregistrements de la table links récupérés")
-            return df
+#     if connection is not None:
+#         try:
+#             # Utiliser Pandas pour lire directement depuis la base de données
+#             df = pd.read_sql_query(query, con=connection)
+#             print("Enregistrements de la table movies récupérés")
+#             return df
 
-        except SQLAlchemyError as e:
-            print(f"Erreur lors de la récupération des enregistrements: {e}")
-            raise
+#         except SQLAlchemyError as e:
+#             print(f"Erreur lors de la récupération des enregistrements: {e}")
+#             raise
 
-        finally:
-            # Fermer la connexion
-            connection.close()
-            print("Connexion fermée.")
+#         finally:
+#             # Fermer la connexion
+#             connection.close()
+#             print("Connexion fermée.")
 
-    else:
-        print("Échec de la connexion à la base de données.")
-        return pd.DataFrame()  # Retourner un DataFrame vide si la connexion échoue
+#     else:
+#         print("Échec de la connexion à la base de données.")
+#         return pd.DataFrame()  # Retourner un DataFrame vide si la connexion échoue
+
+
+# def fetch_ratings(chunk_size=1000) -> pd.DataFrame:
+#     """Récupère les enregistrements de la table movies et les transforme en DataFrame par morceaux."""
+
+#     query = """
+#     SELECT userid, movieid, rating
+#     FROM ratings
+#     """
+
+#     # Établir une connexion à PostgreSQL
+#     engine, connection = connect_to_postgresql()
+
+#     if connection is not None:
+#         try:
+#             # Initialiser une liste pour stocker les morceaux de DataFrame
+#             chunks = []
+
+#             # Utiliser Pandas pour lire directement depuis la base de données par morceaux
+#             for chunk in pd.read_sql_query(query, con=connection, chunksize=chunk_size):
+#                 chunks.append(chunk)
+#                 print(f"Chunk récupéré avec {len(chunk)} enregistrements.")
+
+#             # Concaténer tous les morceaux en un seul DataFrame
+#             df = pd.concat(chunks, ignore_index=True)
+#             print("Tous les enregistrements de la table ratings récupérés.")
+#             return df
+
+#         except SQLAlchemyError as e:
+#             print(f"Erreur lors de la récupération des enregistrements: {e}")
+#             raise
+
+#         finally:
+#             # Fermer la connexion
+#             connection.close()
+#             print("Connexion fermée.")
+
+#     else:
+#         print("Échec de la connexion à la base de données.")
+#         return pd.DataFrame()  # Retourner un DataFrame vide si la connexion échoue
+
+
+# def fetch_links() -> pd.DataFrame:
+#     """Récupère les enregistrements de la table movies et les transforme en DataFrame."""
+
+#     query = """
+#     SELECT id, movieid, imdbid, tmdbid
+#     FROM links
+#     """
+
+#     # Établir une connexion à PostgreSQL
+#     engine, connection = connect_to_postgresql()
+
+#     if connection is not None:
+#         try:
+#             # Utiliser Pandas pour lire directement depuis la base de données
+#             df = pd.read_sql_query(query, con=connection)
+#             print("Enregistrements de la table links récupérés")
+#             return df
+
+#         except SQLAlchemyError as e:
+#             print(f"Erreur lors de la récupération des enregistrements: {e}")
+#             raise
+
+#         finally:
+#             # Fermer la connexion
+#             connection.close()
+#             print("Connexion fermée.")
+
+#     else:
+#         print("Échec de la connexion à la base de données.")
+#         return pd.DataFrame()  # Retourner un DataFrame vide si la connexion échoue
 
 
 # Chargement du dernier modèle
@@ -192,7 +224,7 @@ def load_model(model_name):
 
 # Fonction pour obtenir des recommandations pour un utilisateur donné
 def get_user_recommendations(
-    ratings_df, user_id: int, model: SVD, n_recommendations: int = 10
+    ratings_df, user_id: int, model: SVD, n_recommendations: int = 24
 ):
     """Obtenir des recommandations pour un utilisateur donné."""
     # Créer un DataFrame contenant tous les films
@@ -219,12 +251,8 @@ def get_user_recommendations(
 
 
 # Focntion qui regroupe les recommandations
-def get_content_based_recommendations(
-    title_string, movie_idx, cosine_sim, n_recommendations=10
-):
-    title = movie_finder(title_string)
-    idx = movie_idx[title]
-    sim_scores = list(enumerate(cosine_sim[idx]))
+def get_content_based_recommendations(movie_idx, cosine_sim, n_recommendations=24):
+    sim_scores = list(enumerate(cosine_sim[movie_idx]))
     sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
     sim_scores = sim_scores[1 : (n_recommendations + 1)]
     similar_movies = [i[0] for i in sim_scores]
@@ -232,15 +260,23 @@ def get_content_based_recommendations(
 
 
 def format_movie_id(movie_id):
-    """Formate l'ID du film pour qu'il ait 7 chiffres."""
-    return str(movie_id).zfill(7)
+    """Transforme en ImdbId et  Formate l'ID du film pour qu'il ait 7 chiffres."""
+    # Filtrer le DataFrame pour obtenir la ligne correspondant au movie_id
+    result = links.loc[links["movieid"] == movie_id, "imdbid"]
+    # Vérifier si un résultat a été trouvé et retourner la valeur
+    if not result.empty:
+        imdbid = result.values[0]  # Retourne la première valeur trouvée
+        imdbid_format = str(imdbid).zfill(7)  # Formate l'ID pour qu'il ait 7 chiffres
+        return imdbid_format
+    else:
+        return None  # Retourne None si aucun movie_id ne correspond
 
 
 def api_tmdb_request(movie_ids):
     """Effectue des requêtes à l'API TMDB pour récupérer les informations des films."""
     results = {}
 
-    for index, movie_id in enumerate(movie_ids):
+    for movie_id in movie_ids:
         formatted_id = format_movie_id(movie_id)
         url = f"https://api.themoviedb.org/3/find/tt{formatted_id}?external_source=imdb_id"
 
@@ -254,6 +290,7 @@ def api_tmdb_request(movie_ids):
         if response.status_code == 200:
             data = response.json()
             if data["movie_results"]:
+                index = len(results) + 1
                 movie_info = data["movie_results"][0]
                 results[str(index)] = {
                     "title": movie_info["title"],
@@ -261,10 +298,9 @@ def api_tmdb_request(movie_ids):
                     "poster_path": f"http://image.tmdb.org/t/p/w185{movie_info['poster_path']}",
                 }
 
-        else:
-            results[str(index)] = {
-                "error": f"Request failed with status code {response.status_code}"
-            }
+        # Vérifie si nous avons atteint 12 résultats
+        if len(results) >= 12:
+            break
 
     return results
 
@@ -347,9 +383,12 @@ tmdb_request_duration_histogram = Histogram(
 # CHARGEMENT DES DONNEES AU DEMARRAGE DE API
 print("############ DEBUT DES CHARGEMENTS ############")
 # Chargement de nos dataframe
-ratings = fetch_ratings()
-movies = fetch_movies()
-links = fetch_links()
+ratings = load_csv_to_df("/data/processed_ratings.csv")
+movies = load_csv_to_df("/data/processed_movies.csv")
+links = load_csv_to_df("/data/processed_links.csv")
+# ratings = fetch_ratings()
+# movies = fetch_movies()
+# links = fetch_links()
 # Chargement d'un modèle SVD pré-entraîné pour les recommandations
 model_svd = load_model("model_SVD.pkl")
 # Chargement de la matrice cosinus similarity
@@ -480,7 +519,7 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
         # Forcer la conversion en int
         user_id = int(user_request.userId)
         recommendations = get_user_recommendations(
-            ratings, user_id, model_svd, n_recommendations=12
+            ratings, user_id, model_svd, n_recommendations=24
         )
         logger.info(f"Recommandations pour l'utilisateur {userId}: {recommendations}")
         imdb_list = [
@@ -548,15 +587,16 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
     nb_of_requests_counter.labels(
         method="POST", endpoint="/predict/similar_movies"
     ).inc()
+    movie_title = user_request.movie_title
     try:
         # # Trouver le titre du film correspondant
-        movie_title = movie_finder(all_titles, user_request.movie_title)
+        movie_title = movie_finder(all_titles, movie_title)
         logger.info(f"film correspondant dans notre base de données: {movie_title}")
         # # Trouver l'index du film correspondant
-        movie_idx = movie_idx[movie_title]
+        movie_id = movie_idx[movie_title]
         # Récupérer les ID des films recommandés en utilisant la fonction de similarité
         recommendations = get_content_based_recommendations(
-            movie_title, movie_idx, similarity_cosinus, n_recommendations=12
+            movie_id, similarity_cosinus, n_recommendations=24
         )
         imdb_list = [
             imdb_dict[movie_id] for movie_id in recommendations if movie_id in imdb_dict

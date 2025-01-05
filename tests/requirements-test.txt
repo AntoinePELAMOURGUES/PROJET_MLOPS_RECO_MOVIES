@@ -1,3 +1,4 @@
 # Test framework
 pytest
 pandas
+passlib

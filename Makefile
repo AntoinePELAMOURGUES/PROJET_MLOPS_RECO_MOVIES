@@ -75,7 +75,6 @@ start-airflow:
 	kubectl apply -f kubernetes/deployments/pgadmin-deployment.yml
 	kubectl apply -f kubernetes/services/pgadmin-service.yml
 	kubectl apply -f kubernetes/secrets/airflow-secrets.yaml
-	kubectl apply -f kubernetes/secrets/mlflow-secrets.yaml
 
 # Deploy MLflow using Helm
 start-mlflow:
@@ -89,6 +88,8 @@ start-mlflow:
 # Deploy API services (FastAPI and Streamlit)
 start-api:
 	kubectl create namespace $(NAMESPACE1) || true
+	kubectl apply -f kubernetes/persistent-volumes/raw-storage-pv.yml
+	kubectl apply -f kubernetes/persistent-volumes/raw-storage-pvc.yml
 	kubectl apply -f kubernetes/persistent-volumes/models-storage-pv.yml
 	kubectl apply -f kubernetes/persistent-volumes/models-storage-pvc.yml
 	kubectl apply -f kubernetes/secrets/api-secrets.yaml
@@ -99,7 +100,8 @@ start-api:
 start-prometheus:
 	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 	helm repo update
-	helm install prometheus prometheus-community/kube-prometheus-stack --namespace $(NAMESPACE4) --create-namespace -f kubernetes/prometheus/values.yaml
+	helm install prometheus
+	kubectl apply -f kubernetes/secrets/mlflow-secrets.yamlprometheus-community/kube-prometheus-stack --namespace $(NAMESPACE4) --create-namespace -f kubernetes/prometheus/values.yaml
 
 
 # Delete persistent volumes for Airflow (if they exist)
