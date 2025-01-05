@@ -128,12 +128,11 @@ def train_cosine_similarity(movies, data_directory):
 
     os.makedirs(data_directory, exist_ok=True)  # Crée le répertoire si nécessaire
 
-    # Enregistrement du modèle avec pickle
-    with open(f"{data_directory}/cosine_similarity_matrix.pkl", "wb") as f:
-        pickle.dump(cosine_sim, f)
-        print(
-            f"Matrice de simiarité enregistrée avec pickle sous {data_directory}/cosine_similarity_matrix.pkl."
-        )
+    # Enregistrement du modèle avec NumPy
+    np.save(f"{data_directory}/cosine_similarity_matrix.npy", cosine_sim)
+    print(
+        f"Matrice de similarité enregistrée avec NumPy sous {data_directory}/cosine_similarity_matrix.npy."
+    )
 
 
 if __name__ == "__main__":
@@ -142,7 +141,7 @@ if __name__ == "__main__":
     data_directory = os.path.join(my_project_directory, "data/models")
     movies = pd.read_csv(f"{raw_data_relative_path}/processed_movies.csv")
     ratings, movies = load_data(raw_data_relative_path)
-    # print("Entrainement du modèle SVD")
-    # train_SVD_model(ratings, data_directory)
+    print("Entrainement du modèle SVD")
+    train_SVD_model(ratings, data_directory)
     print("Création de la matrice de similarité cosinus en fonction des genres")
     train_cosine_similarity(movies, data_directory)

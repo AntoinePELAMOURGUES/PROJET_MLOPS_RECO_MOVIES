@@ -48,7 +48,7 @@ start-all: start-minikube start-airflow start-mlflow start-api
 
 # Start Minikube with specified resources
 start-minikube:
-	minikube start --driver=docker --memory=8000 --cpus=4 --mount --mount-string="$(PROJECT_DIRECTORY):/host"
+	minikube start --driver=docker --memory=28000 --cpus=4 --mount --mount-string="$(PROJECT_DIRECTORY):/host"
 
 # Install Helm package manager
 install-helm:

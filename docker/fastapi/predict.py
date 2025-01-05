@@ -353,7 +353,7 @@ links = fetch_links()
 # Chargement d'un modèle SVD pré-entraîné pour les recommandations
 model_svd = load_model("model_SVD.pkl")
 # Chargement de la matrice cosinus similarity
-similarity_cosinus = load_model("cosine_similarity_matrix.pkl")
+similarity_cosinus = np.load("/models/cosine_similarity_matrix.npy")
 # Création d'un dataframe pour les liens entre les films et les ID IMDB
 movies_links_df = movies.merge(links, on="movieid", how="left")
 # Création de dictionnaires pour faciliter l'accès aux titres et aux couvertures des films par leur ID
