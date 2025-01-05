@@ -1,9 +1,7 @@
 <h1>RECOMMANDATION DE FILMS</h1>
-<h1>RECOMMANDATION DE FILMS</h1>
 
 ![Project Logo](reco_movies_project.jpeg)
 
-<h2>:diamond_shape_with_a_dot_inside:Introduction</h2>
 <h2>:diamond_shape_with_a_dot_inside:Introduction</h2>
 Dans le cadre de notre formation en Machine Learning Operations (MLOps) dispensée par Datascientest, nous avons l'opportunité d'explorer la mise en production et le monitoring d'une API dédiée à la recommandation de films. Ce projet vise à allier théorie et pratique en développant une solution robuste qui non seulement prédit les films susceptibles d'intéresser les utilisateurs, mais assure également un suivi constant de la performance de l'API.
 
