@@ -5,7 +5,7 @@ NAMESPACE3 = mlflow
 NAMESPACE4 = prom
 
 # Project_directory
-PROJECT_DIRECTORY = /home/antoine/PROJET_MLOPS_RECO_MOVIES
+PROJECT_DIRECTORY = /home/antoine/jul24_cmlops_reco_film
 
 
 # Declare phony targets that do not correspond to files
@@ -48,7 +48,7 @@ start-all: start-minikube start-airflow start-mlflow start-api
 
 # Start Minikube with specified resources
 start-minikube:
-	minikube start --driver=docker --memory=28000 --cpus=4 --mount --mount-string="$(PROJECT_DIRECTORY):/host"
+	minikube start --driver=docker --memory=14000 --cpus=4 --mount --mount-string="$(PROJECT_DIRECTORY):/host"
 
 # Install Helm package manager
 install-helm:

@@ -16,3 +16,5 @@ passlib[bcrypt]
 python-jose
 scikit-learn
 sqlalchemy
+pytest
+httpx

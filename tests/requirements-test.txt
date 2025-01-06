@@ -2,3 +2,4 @@
 pytest
 pandas
 passlib
+python-dotenv

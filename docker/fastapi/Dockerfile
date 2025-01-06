@@ -18,5 +18,6 @@ RUN pip install --no-cache-dir --upgrade -r /app/requirements.txt
 # Copier le reste de l'application
 COPY . .
 
+
 # Commande par défaut pour exécuter l'application (ajustez selon vos besoins)
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
