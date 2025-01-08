@@ -1,0 +1,6 @@
+psycopg[binary]>=3.0.0
+pytest>=6.0.0
+pytest-postgresql>=6.1.0
+psycopg2-binary
+testcontainers>=3.0.0
+pandas

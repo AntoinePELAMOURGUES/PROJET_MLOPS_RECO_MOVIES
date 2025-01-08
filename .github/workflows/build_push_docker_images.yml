@@ -69,3 +69,11 @@ jobs:
           file: ./docker/streamlit/Dockerfile
           push: true
           tags: ${{ secrets.DOCKER_USERNAME }}/projet_reco_movies:streamlit-latest
+
+      - name: Build and push db_to_csv image
+        uses: docker/build-push-action@v2
+        with:
+          context: ./docker/python_db_to_csv
+          file: ./docker/python_db_to_csv/Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKER_USERNAME }}/projet_reco_movies:python-db-to-csv-latest
