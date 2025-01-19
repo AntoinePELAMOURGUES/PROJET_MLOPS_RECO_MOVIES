@@ -459,8 +459,9 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
         recommendations = get_content_based_recommendations(
             movie_titles, movie_title, similarity_cosinus, n_recommendations=24
         )
+        movies_id = [movies["movieid"].iloc[i] for i in recommendations]
         imdb_list = [
-            imdb_dict[movie_id] for movie_id in recommendations if movie_id in imdb_dict
+            imdb_dict[movie_id] for movie_id in movies_id if movie_id in imdb_dict
         ]
         start_tmdb_time = time.time()
         results = api_tmdb_request(imdb_list)
