@@ -13,8 +13,6 @@ from pydantic import BaseModel
 import requests
 import logging
 from kubernetes import client, config
-from sqlalchemy import create_engine
-from sqlalchemy.exc import SQLAlchemyError
 
 
 tmdb_token = os.getenv("TMDB_API_TOKEN")
@@ -77,137 +75,6 @@ def load_csv_to_df(file_path: str, chunk_size: int = 2000) -> pd.DataFrame:
         return pd.DataFrame()  # Retourner un DataFrame vide en cas d'erreur
 
 
-# def connect_to_postgresql():
-#     """Charge la configuration de la base de données à partir des variables d'environnement et établit une connexion."""
-#     # Charger la configuration depuis les variables d'environnement
-#     config = {
-#         "host": os.getenv("POSTGRES_HOST"),
-#         "database": os.getenv("POSTGRES_DB"),
-#         "user": os.getenv("POSTGRES_USER"),
-#         "password": os.getenv("POSTGRES_PASSWORD"),
-#     }
-
-#     # Créer la chaîne de connexion
-#     connection_str = f'postgresql+psycopg2://{config["user"]}:{config["password"]}@{config["host"]}/{config["database"]}'
-
-#     # Créer l'objet engine
-#     engine = create_engine(connection_str)
-
-#     try:
-#         # Tester la connexion
-#         connection = engine.connect()
-#         print("Connected to the PostgreSQL server.")
-#         return engine, connection  # Retourner l'engine et la connexion active
-
-#     except SQLAlchemyError as error:
-#         print(f"Connection error: {error}")
-#         return None, None  # Retourner None en cas d'échec
-
-
-# def fetch_movies() -> pd.DataFrame:
-#     """Récupère les enregistrements de la table movies et les transforme en DataFrame."""
-
-#     query = """
-#     SELECT movieid, title, genres
-#     FROM movies
-#     """
-
-#     # Établir une connexion à PostgreSQL
-#     engine, connection = connect_to_postgresql()
-
-#     if connection is not None:
-#         try:
-#             # Utiliser Pandas pour lire directement depuis la base de données
-#             df = pd.read_sql_query(query, con=connection)
-#             print("Enregistrements de la table movies récupérés")
-#             return df
-
-#         except SQLAlchemyError as e:
-#             print(f"Erreur lors de la récupération des enregistrements: {e}")
-#             raise
-
-#         finally:
-#             # Fermer la connexion
-#             connection.close()
-#             print("Connexion fermée.")
-
-#     else:
-#         print("Échec de la connexion à la base de données.")
-#         return pd.DataFrame()  # Retourner un DataFrame vide si la connexion échoue
-
-
-# def fetch_ratings(chunk_size=1000) -> pd.DataFrame:
-#     """Récupère les enregistrements de la table movies et les transforme en DataFrame par morceaux."""
-
-#     query = """
-#     SELECT userid, movieid, rating
-#     FROM ratings
-#     """
-
-#     # Établir une connexion à PostgreSQL
-#     engine, connection = connect_to_postgresql()
-
-#     if connection is not None:
-#         try:
-#             # Initialiser une liste pour stocker les morceaux de DataFrame
-#             chunks = []
-
-#             # Utiliser Pandas pour lire directement depuis la base de données par morceaux
-#             for chunk in pd.read_sql_query(query, con=connection, chunksize=chunk_size):
-#                 chunks.append(chunk)
-#                 print(f"Chunk récupéré avec {len(chunk)} enregistrements.")
-
-#             # Concaténer tous les morceaux en un seul DataFrame
-#             df = pd.concat(chunks, ignore_index=True)
-#             print("Tous les enregistrements de la table ratings récupérés.")
-#             return df
-
-#         except SQLAlchemyError as e:
-#             print(f"Erreur lors de la récupération des enregistrements: {e}")
-#             raise
-
-#         finally:
-#             # Fermer la connexion
-#             connection.close()
-#             print("Connexion fermée.")
-
-#     else:
-#         print("Échec de la connexion à la base de données.")
-#         return pd.DataFrame()  # Retourner un DataFrame vide si la connexion échoue
-
-
-# def fetch_links() -> pd.DataFrame:
-#     """Récupère les enregistrements de la table movies et les transforme en DataFrame."""
-
-#     query = """
-#     SELECT id, movieid, imdbid, tmdbid
-#     FROM links
-#     """
-
-#     # Établir une connexion à PostgreSQL
-#     engine, connection = connect_to_postgresql()
-
-#     if connection is not None:
-#         try:
-#             # Utiliser Pandas pour lire directement depuis la base de données
-#             df = pd.read_sql_query(query, con=connection)
-#             print("Enregistrements de la table links récupérés")
-#             return df
-
-#         except SQLAlchemyError as e:
-#             print(f"Erreur lors de la récupération des enregistrements: {e}")
-#             raise
-
-#         finally:
-#             # Fermer la connexion
-#             connection.close()
-#             print("Connexion fermée.")
-
-#     else:
-#         print("Échec de la connexion à la base de données.")
-#         return pd.DataFrame()  # Retourner un DataFrame vide si la connexion échoue
-
-
 # Chargement du dernier modèle
 def load_model(model_name):
     """Charge le modèle à partir du répertoire monté."""
@@ -250,9 +117,29 @@ def get_user_recommendations(
     return top_n  # Retourner les meilleures recommandations
 
 
+# Recherche un titre proche de la requête
+def movie_finder(all_titles, title):
+    """
+    Trouve le titre de film le plus proche d'une requête donnée.
+    Args:
+        all_titles (list): Liste de tous les titres de films disponibles.
+        title (str): Titre du film à rechercher.
+    Returns:
+        str: Le titre du film le plus proche trouvé.
+    """
+    closest_match = process.extractOne(title, all_titles)
+    return (
+        closest_match[0] if closest_match else None
+    )  # Retourne None si aucun match n'est trouvé
+
+
 # Focntion qui regroupe les recommandations
-def get_content_based_recommendations(movie_idx, cosine_sim, n_recommendations=24):
-    sim_scores = list(enumerate(cosine_sim[movie_idx]))
+def get_content_based_recommendations(
+    all_titles, title_string, cosine_sim, n_recommendations=15
+):
+    title = movie_finder(all_titles, title_string)
+    idx = movie_idx[title]
+    sim_scores = list(enumerate(cosine_sim[idx]))
     sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
     sim_scores = sim_scores[1 : (n_recommendations + 1)]
     similar_movies = [i[0] for i in sim_scores]
@@ -261,15 +148,8 @@ def get_content_based_recommendations(movie_idx, cosine_sim, n_recommendations=2
 
 def format_movie_id(movie_id):
     """Transforme en ImdbId et  Formate l'ID du film pour qu'il ait 7 chiffres."""
-    # Filtrer le DataFrame pour obtenir la ligne correspondant au movie_id
-    result = links.loc[links["movieid"] == movie_id, "imdbid"]
-    # Vérifier si un résultat a été trouvé et retourner la valeur
-    if not result.empty:
-        imdbid = result.values[0]  # Retourne la première valeur trouvée
-        imdbid_format = str(imdbid).zfill(7)  # Formate l'ID pour qu'il ait 7 chiffres
-        return imdbid_format
-    else:
-        return None  # Retourne None si aucun movie_id ne correspond
+    imdbid_format = str(movie_id).zfill(7)  # Formate l'ID pour qu'il ait 7 chiffres
+    return imdbid_format
 
 
 def api_tmdb_request(movie_ids):
@@ -305,22 +185,7 @@ def api_tmdb_request(movie_ids):
     return results
 
 
-# Recherche un titre proche de la requête
-def movie_finder(all_titles, title):
-    """
-    Trouve le titre de film le plus proche d'une requête donnée.
-
-    Args:
-        all_titles (list): Liste de tous les titres de films disponibles.
-        title (str): Titre du film à rechercher.
-
-    Returns:
-        str: Le titre du film le plus proche trouvé.
-    """
-    closest_match = process.extractOne(title, all_titles)
-    return (
-        closest_match[0] if closest_match else None
-    )  # Retourne None si aucun match n'est trouvé
+#
 
 
 # ---------------------------------------------------------------
@@ -448,6 +313,7 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
             for movie_id in best_movies["movieid"]
             if movie_id in imdb_dict
         ]
+        logger.info(f"Meilleurs films pour l'utilisateur {userId}: {imdb_list}")
         start_tmdb_time = time.time()
         results = api_tmdb_request(imdb_list)
         tmdb_duration = time.time() - start_tmdb_time
@@ -589,14 +455,9 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
     ).inc()
     movie_title = user_request.movie_title
     try:
-        # # Trouver le titre du film correspondant
-        movie_title = movie_finder(all_titles, movie_title)
-        logger.info(f"film correspondant dans notre base de données: {movie_title}")
-        # # Trouver l'index du film correspondant
-        movie_id = movie_idx[movie_title]
         # Récupérer les ID des films recommandés en utilisant la fonction de similarité
         recommendations = get_content_based_recommendations(
-            movie_id, similarity_cosinus, n_recommendations=24
+            movie_titles, movie_title, similarity_cosinus, n_recommendations=24
         )
         imdb_list = [
             imdb_dict[movie_id] for movie_id in recommendations if movie_id in imdb_dict

@@ -116,8 +116,11 @@ def train_cosine_similarity(movies, data_directory):
         # Créer des variables indicatrices pour les genres
         genres = movies["genres"].str.get_dummies(sep=",")
 
+        genres = genres.drop(columns=["(nogenreslisted)"])
+
         # Afficher la matrice des genres
         print("\nMatrice des genres :")
+
         print(genres)
 
         # Calculer la similarité cosinus
