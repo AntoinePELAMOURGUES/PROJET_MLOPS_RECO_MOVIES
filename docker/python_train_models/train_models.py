@@ -16,17 +16,18 @@ from sklearn.metrics.pairwise import cosine_similarity
 def load_config():
     """Charge la configuration de la base de données à partir des variables d'environnement."""
     return {
-        'host': os.getenv('POSTGRES_HOST'),
-        'database': os.getenv('POSTGRES_DB'),
-        'user': os.getenv('POSTGRES_USER'),
-        'password': os.getenv('POSTGRES_PASSWORD')
+        "host": os.getenv("POSTGRES_HOST"),
+        "database": os.getenv("POSTGRES_DB"),
+        "user": os.getenv("POSTGRES_USER"),
+        "password": os.getenv("POSTGRES_PASSWORD"),
     }
+
 
 def connect(config):
     """Connecte au serveur PostgreSQL et retourne la connexion."""
     try:
         conn = psycopg2.connect(**config)
-        print('Connected to the PostgreSQL server.')
+        print("Connected to the PostgreSQL server.")
         return conn
     except (psycopg2.DatabaseError, Exception) as error:
         print(f"Connection error: {error}")
@@ -66,6 +67,7 @@ def fetch_ratings(table):
         print("Failed to connect to the database.")
         return None
 
+
 def fetch_movies(table):
     """Récupère la table movies et retourne un DataFrame."""
     config = load_config()
@@ -93,7 +95,7 @@ def fetch_movies(table):
 # Chargement du dernier modèle
 def load_model(model_name):
     """Charge le modèle à partir du répertoire monté."""
-    model_path = f"/models/{model_name}"
+    model_path = f"/root/mount_file/models/{model_name}"
     if not os.path.exists(model_path):
         raise FileNotFoundError(
             f"Le modèle {model_name} n'existe pas dans {model_path}."
@@ -118,13 +120,13 @@ def train_SVD_model(df, data_directory) -> tuple:
 
     # Préparer les données pour Surprise
     reader = Reader(rating_scale=(0.5, 5))
-    data = Dataset.load_from_df(df[['userid', 'movieid', 'rating']], reader=reader)
+    data = Dataset.load_from_df(df[["userid", "movieid", "rating"]], reader=reader)
 
     # Diviser les données en ensembles d'entraînement et de test
     trainset, testset = train_test_split(data, test_size=0.10)
 
     # Créer et entraîner le modèle SVD
-    model = load_model('model_SVD.pkl')
+    model = load_model("model_SVD.pkl")
     model.fit(trainset)
 
     # Tester le modèle sur l'ensemble de test et calculer RMSE
@@ -139,7 +141,7 @@ def train_SVD_model(df, data_directory) -> tuple:
     os.makedirs(data_directory, exist_ok=True)  # Crée le répertoire si nécessaire
 
     # Enregistrement du modèle avec pickle
-    with open(f'{data_directory}/model_SVD.pkl', 'wb') as f:
+    with open(f"{data_directory}/model_SVD.pkl", "wb") as f:
         pickle.dump(model, f)
         print(f"Modèle SVD enregistré avec pickle sous {data_directory}/model_SVD.pkl.")
 
@@ -157,11 +159,12 @@ def train_SVD_model(df, data_directory) -> tuple:
     # Finir l'exécution de l'expérience MLflow
     mlflow.end_run()
 
+
 def train_cosine_similarity(movies, data_directory):
     """
     Calcule la similarité cosinus entre les films en utilisant les genres des films dans le cadre d'un démarrage à froid.
     """
-     # Démarrer une nouvelle expérience MLflow
+    # Démarrer une nouvelle expérience MLflow
     mlflow.start_run()
     # Vérifier les colonnes et le contenu
     start_time = datetime.now()  # Démarrer la mesure du temps
@@ -169,9 +172,7 @@ def train_cosine_similarity(movies, data_directory):
     if "genres" in movies.columns:
 
         # Supprimer les espaces autour des virgules
-        movies["genres"] = movies["genres"].str.replace(
-            " ", ""
-        )
+        movies["genres"] = movies["genres"].str.replace(" ", "")
         # Nettoyer les genres en supprimant les espaces au début et à la fin
         movies["genres"] = movies["genres"].str.strip()
 
@@ -184,7 +185,7 @@ def train_cosine_similarity(movies, data_directory):
         end_time = datetime.now()
 
         duration = end_time - start_time
-        print(f'Durée de l\'entraînement : {duration}')
+        print(f"Durée de l'entraînement : {duration}")
         print(f"Dimensions de notre matrice de similarité cosinus : {cosine_sim.shape}")
 
         os.makedirs(data_directory, exist_ok=True)  # Crée le répertoire si nécessaire
@@ -213,12 +214,13 @@ def authenticate_mlflow():
         os.environ["MLFLOW_TRACKING_USERNAME"] = mlflow_username
         os.environ["MLFLOW_TRACKING_PASSWORD"] = mlflow_password
 
+
 if __name__ == "__main__":
-    data_directory = '/root/mount_file/models'
+    data_directory = "/root/mount_file/models"
     authenticate_mlflow()
-    ratings = fetch_ratings('ratings')
-    movies = fetch_movies('movies')
-    print('Entrainement du modèle SVD')
+    ratings = fetch_ratings("ratings")
+    movies = fetch_movies("movies")
+    print("Entrainement du modèle SVD")
     train_SVD_model(ratings, data_directory)
-    print('Création de notre matrice cosinus')
+    print("Création de notre matrice cosinus")
     train_cosine_similarity(movies, data_directory)

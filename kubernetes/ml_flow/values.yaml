@@ -1,4 +1,5 @@
 auth:
-  enabled: true
-  username: user
-  password: reco_movies
+    enabled: true
+    username: user
+    password: reco_movies
+
