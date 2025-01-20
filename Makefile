@@ -102,8 +102,8 @@ start-api:
 start-prometheus:
 	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
 	helm repo update
-	helm install prometheus
-	kubectl apply -f kubernetes/secrets/mlflow-secrets.yamlprometheus-community/kube-prometheus-stack --namespace $(NAMESPACE4) --create-namespace -f kubernetes/prometheus/values.yaml
+	helm install prometheus prometheus-community/kube-prometheus-stack --namespace $(NAMESPACE4) --create-namespace -f kubernetes/prometheus/values.yaml
+	kubectl apply -f kubernetes/secrets/mlflow-secrets.yaml
 
 
 # Delete persistent volumes for Airflow (if they exist)

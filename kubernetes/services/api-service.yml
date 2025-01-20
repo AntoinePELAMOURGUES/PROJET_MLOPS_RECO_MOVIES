@@ -19,7 +19,25 @@ metadata:
   namespace: api
 spec:
   selector:
-    app: streamlit # Assurez-vous que ce label correspond à celui de votre pod Streamlit
+    app: streamlit
   ports:
     - protocol: TCP
       port: 8501 # Port par défaut pour Streamlit
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: fastapi-monitor
+  namespace: prom
+spec:
+  selector:
+    matchLabels:
+      app: fastapi
+  namespaceSelector:
+    matchNames:
+      - api  # Le namespace où se trouve notre service FastAPI
+  endpoints:
+    - port: "80"
+      interval: 30s  # Intervalle de scraping
+      scrapeTimeout: 10s  # Timeout pour le scraping
