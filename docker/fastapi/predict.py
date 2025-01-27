@@ -170,7 +170,7 @@ def api_tmdb_request(movie_ids):
         if response.status_code == 200:
             data = response.json()
             if data["movie_results"]:
-                index = len(results) + 1
+                index = len(results)
                 movie_info = data["movie_results"][0]
                 results[str(index)] = {
                     "title": movie_info["title"],
@@ -179,7 +179,7 @@ def api_tmdb_request(movie_ids):
                 }
 
         # Vérifie si nous avons atteint 12 résultats
-        if len(results) >= 12:
+        if len(results) > 11:
             break
 
     return results
