@@ -1,7 +1,6 @@
 # Define namespaces for Kubernetes
 NAMESPACE1 = api
 NAMESPACE2 = airflow
-NAMESPACE3 = mlflow
 NAMESPACE4 = prom
 
 # Project_directory
@@ -80,7 +79,7 @@ start-airflow:
 start-mlflow:
 	helm repo add bitnami https://charts.bitnami.com/bitnami
 	helm repo update
-	helm install mlf-ts bitnami/mlflow --namespace $(NAMESPACE3) --create-namespace -f kubernetes/ml_flow/values.yaml
+	helm install mlf-ts bitnami/mlflow --namespace $(NAMESPACE2) --create-namespace -f kubernetes/ml_flow/values.yaml
 	kubectl apply -f kubernetes/persistent-volumes/mlflow-storage-pv.yml
 	kubectl apply -f kubernetes/persistent-volumes/mlflow-storage-pvc.yml
 	kubectl apply -f kubernetes/services/mlflow-service.yml
