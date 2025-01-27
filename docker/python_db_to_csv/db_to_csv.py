@@ -3,6 +3,7 @@ import psycopg2
 import pandas as pd
 from sqlalchemy import create_engine, table, column
 from sqlalchemy.dialects.postgresql import insert
+import datetime
 
 
 def load_config():
@@ -38,7 +39,7 @@ def fetch_table(table):
                 FROM {table};
             """
             df = pd.read_sql_query(query, conn)
-            print("Data fetched successfully.")
+            print(f"Data {table} fetched successfully.")
             return df
         except Exception as e:
             print(f"Error fetching data: {e}")
@@ -50,28 +51,40 @@ def fetch_table(table):
         return None
 
 
-def save_data(df, data_directory):
+def save_data(df, data_directory, table_name):
     """
-    Enregistre les DataFrames traités dans des fichiers CSV.
+    Enregistre les DataFrames traités dans des fichiers CSV avec un nom basé sur la date et l'heure.
     """
-
     os.makedirs(data_directory, exist_ok=True)  # Crée le répertoire si nécessaire
 
     try:
-        # Enregistrement des fichiers CSV
-        df.to_csv(f"{data_directory}/{df}.csv", index=False)
+        # Générer un horodatage pour le nom du fichier
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"processed_{table_name}_{timestamp}.csv"
 
-        print(f"{df} loaded in {data_directory}")
+        # Enregistrement des fichiers CSV
+        df.to_csv(os.path.join(data_directory, filename), index=False)
+
+        print(f"{filename} loaded in {data_directory}")
 
     except IOError as e:
         print(f"Error saving files: {e}")
 
+
 if __name__ == "__main__":
     data_directory = "/root/mountfile/raw/silver"
-    # Chargement des données à partir du chemin spécifié
-    processed_ratings = fetch_table('ratings')
-    save_data(processed_ratings, data_directory=data_directory)
-    processed_movies = fetch_table('movies')
-    save_data(processed_movies, data_directory)
-    processed_links = fetch_table('links')
-    save_data(processed_links, data_directory)
+
+    # Chargement des données à partir du chemin spécifié et enregistrement avec horodatage
+    processed_ratings = fetch_table("ratings")
+    if processed_ratings is not None:
+        save_data(
+            processed_ratings, data_directory=data_directory, table_name="ratings"
+        )
+
+    processed_movies = fetch_table("movies")
+    if processed_movies is not None:
+        save_data(processed_movies, data_directory=data_directory, table_name="movies")
+
+    processed_links = fetch_table("links")
+    if processed_links is not None:
+        save_data(processed_links, data_directory=data_directory, table_name="links")

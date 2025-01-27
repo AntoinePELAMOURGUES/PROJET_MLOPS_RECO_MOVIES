@@ -11,153 +11,50 @@ import numpy as np
 import psycopg2
 import mlflow
 from sklearn.metrics.pairwise import cosine_similarity
+from pathlib import Path
 
 
-def load_config():
-    """Charge la configuration de la base de données à partir des variables d'environnement."""
-    return {
-        "host": os.getenv("POSTGRES_HOST"),
-        "database": os.getenv("POSTGRES_DB"),
-        "user": os.getenv("POSTGRES_USER"),
-        "password": os.getenv("POSTGRES_PASSWORD"),
-    }
+def get_most_recent_files(directory, file_prefixes):
+    """Récupère les fichiers avec les préfixes spécifiés et retourne le plus récent pour chacun."""
+    path = Path(directory)
+    recent_files = {
+        prefix: None for prefix in file_prefixes
+    }  # Dictionnaire pour stocker les fichiers récents
+    recent_times = {
+        prefix: 0 for prefix in file_prefixes
+    }  # Dictionnaire pour stocker les timestamps
+
+    # Parcourir tous les fichiers dans le répertoire
+    for file in path.glob("*.csv"):  # Vous pouvez changer l'extension si nécessaire
+        for prefix in file_prefixes:
+            if file.stem.startswith(
+                prefix
+            ):  # Vérifie si le nom du fichier commence par le préfixe
+                file_time = os.path.getmtime(file)
+                if (
+                    file_time > recent_times[prefix]
+                ):  # Si c'est plus récent que ce qu'on a enregistré
+                    recent_times[prefix] = file_time
+                    recent_files[prefix] = file
+
+    return recent_files
 
 
-def connect(config):
-    """Connecte au serveur PostgreSQL et retourne la connexion."""
-    try:
-        conn = psycopg2.connect(**config)
-        print("Connected to the PostgreSQL server.")
-        return conn
-    except (psycopg2.DatabaseError, Exception) as error:
-        print(f"Connection error: {error}")
-        return None
+if __name__ == "__main__":
+    directory = "/root/mountfile/raw/silver"  # Remplacez par votre répertoire
+    prefixes = [
+        "processed_movies",
+        "processed_ratings",
+    ]  # Préfixes des fichiers à rechercher
+    recent_files = get_most_recent_files(directory, prefixes)
 
-
-def fetch_ratings(table):
-    """Récupère 15 % des dernières lignes de la table ratings et retourne un DataFrame."""
-    config = load_config()
-    conn = connect(config)
-
-    if conn is not None:
-        try:
-            # Étape 1: Comptez le nombre total de lignes dans la table
-            count_query = f"SELECT COUNT(*) FROM {table};"
-            total_count = pd.read_sql_query(count_query, conn).iloc[0, 0]
-
-            # Étape 2: Calculez 15 % du nombre total de lignes
-            limit = int(total_count * 0.15)
-
-            # Étape 3: Récupérez les dernières lignes
-            query = f"""
-                SELECT userid, movieid, rating
-                FROM {table}
-                ORDER BY userid DESC
-                LIMIT {limit};
-            """
-            df = pd.read_sql_query(query, conn)
-            print("Data fetched successfully.")
-            return df
-        except Exception as e:
-            print(f"Error fetching data: {e}")
-            return None
-        finally:
-            conn.close()  # Assurez-vous de fermer la connexion
-    else:
-        print("Failed to connect to the database.")
-        return None
-
-
-def fetch_movies(table):
-    """Récupère la table movies et retourne un DataFrame."""
-    config = load_config()
-    conn = connect(config)
-
-    if conn is not None:
-        try:
-            query = f"""
-                SELECT movieid, genres
-                FROM {table};
-            """
-            df = pd.read_sql_query(query, conn)
-            print("Data fetched successfully.")
-            return df
-        except Exception as e:
-            print(f"Error fetching data: {e}")
-            return None
-        finally:
-            conn.close()  # Assurez-vous de fermer la connexion
-    else:
-        print("Failed to connect to the database.")
-        return None
-
-
-# Chargement du dernier modèle
-def load_model(model_name):
-    """Charge le modèle à partir du répertoire monté."""
-    model_path = f"/root/mount_file/models/{model_name}"
-    if not os.path.exists(model_path):
-        raise FileNotFoundError(
-            f"Le modèle {model_name} n'existe pas dans {model_path}."
-        )
-    with open(model_path, "rb") as file:
-        model = pickle.load(file)
-        print(f"Modèle chargé depuis {model_path}")
-    return model
-
-
-def train_SVD_model(df, data_directory) -> tuple:
-    """Entraîne un modèle SVD de recommandation et sauvegarde le modèle.
-
-    Args:
-        df (pd.DataFrame): DataFrame contenant les colonnes userId, movieId et rating.
-    """
-
-    # Démarrer une nouvelle expérience MLflow
-    mlflow.start_run()
-
-    start_time = datetime.now()  # Démarrer la mesure du temps
-
-    # Préparer les données pour Surprise
-    reader = Reader(rating_scale=(0.5, 5))
-    data = Dataset.load_from_df(df[["userid", "movieid", "rating"]], reader=reader)
-
-    # Diviser les données en ensembles d'entraînement et de test
-    trainset, testset = train_test_split(data, test_size=0.10)
-
-    # Créer et entraîner le modèle SVD
-    model = load_model("model_SVD.pkl")
-    model.fit(trainset)
-
-    # Tester le modèle sur l'ensemble de test et calculer RMSE
-    predictions = model.test(testset)
-    acc = accuracy.rmse(predictions)
-
-    # Arrondir à 2 chiffres après la virgule
-    acc_rounded = round(acc, 2)
-
-    print("Valeur de l'écart quadratique moyen (RMSE) :", acc_rounded)
-
-    os.makedirs(data_directory, exist_ok=True)  # Crée le répertoire si nécessaire
-
-    # Enregistrement du modèle avec pickle
-    with open(f"{data_directory}/model_SVD.pkl", "wb") as f:
-        pickle.dump(model, f)
-        print(f"Modèle SVD enregistré avec pickle sous {data_directory}/model_SVD.pkl.")
-
-    # Enregistrer les métriques dans MLflow
-    mlflow.log_metric("RMSE", acc_rounded)
-
-    # Enregistrer le modèle avec MLflow
-    mlflow.sklearn.log_model(model, "model_SVD")
-
-    end_time = datetime.now()
-
-    duration = end_time - start_time
-    print(f"Durée de l'entraînement : {duration}")
-
-    # Finir l'exécution de l'expérience MLflow
-    mlflow.end_run()
+    for prefix in prefixes:
+        if recent_files[prefix]:
+            print(
+                f"Le fichier le plus récent pour '{prefix}' est : {recent_files[prefix]}"
+            )
+        else:
+            print(f"Aucun fichier trouvé pour '{prefix}'.")
 
 
 def train_cosine_similarity(movies, data_directory):
