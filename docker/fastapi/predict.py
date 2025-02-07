@@ -13,6 +13,8 @@ from pydantic import BaseModel
 import requests
 import logging
 from kubernetes import client, config
+from surprise import Reader
+from surprise import Dataset
 
 
 tmdb_token = os.getenv("TMDB_API_TOKEN")
@@ -94,27 +96,31 @@ def get_user_recommendations(
     ratings_df, user_id: int, model: SVD, n_recommendations: int = 24
 ):
     """Obtenir des recommandations pour un utilisateur donné."""
-    # Créer un DataFrame contenant tous les films
-    all_movies = ratings_df["movieid"].unique()
-
-    # Obtenir les films déjà évalués par l'utilisateur
-    rated_movies = ratings_df[ratings_df["userid"] == user_id]["movieid"].tolist()
-
-    # Trouver les films non évalués par l'utilisateur
-    unseen_movies = [movie for movie in all_movies if movie not in rated_movies]
-
-    # Préparer les prédictions pour les films non évalués
-    predictions = []
-    for movie_id in unseen_movies:
-        pred = model.predict(user_id, movie_id)
-        predictions.append(
-            (movie_id, pred.est)
-        )  # Ajouter l'ID du film et la note prédite
-
-    # Trier les prédictions par note prédite (descendant) et prendre les meilleures n_recommendations
-    top_n = sorted(predictions, key=lambda x: x[1], reverse=True)[:n_recommendations]
-    top_n = [i[0] for i in top_n]
-    return top_n  # Retourner les meilleures recommandations
+    # Initialiser une liste vide pour stocker les paires (utilisateur, movie) pour le jeu "anti-testset"
+    anti_testset = []
+    # Convertir l'ID de l'utilisateur externe en l'ID interne utilisé par Surprise
+    targetUser = train_set.to_inner_uid(user_id)
+    # Obtenir la valeur de remplissage à utiliser (moyenne globale des notes du jeu d'entraînement)
+    moyenne = train_set.global_mean
+    # Obtenir les évaluations de l'utilisateur cible pour les movies
+    user_note = train_set.ur[targetUser]
+    # Extraire la liste des movies notés par l'utilisateur
+    user_movie = [item for (item,_) in (user_note)]
+    # Obtenir toutes les notations du jeu d'entraînement
+    ratings = train_set.all_ratings()
+    # Boucle sur tous les items du jeu d'entraînement
+    for movie in train_set.all_items():
+    # Si l'item n'a pas été noté par l'utilisateur
+        if movie not in user_movie:
+            # Ajouter la paire (utilisateur, movie, valeur de remplissage) à la liste "anti-testset"
+            anti_testset.append((user_id, train_set.to_raw_iid(movie), moyenne))
+    predictionsSVD = model.test(anti_testset)
+    # Convertir les prédictions en un DataFrame pandas
+    predictionsSVD = pd.DataFrame(predictionsSVD)
+    # Trier les prédictions par la colonne 'est' (estimation) en ordre décroissant
+    predictionsSVD.sort_values(by=['est'], inplace=True, ascending=False)
+    # Afficher les 10 meilleures prédictions
+    return predictionsSVD["iid"].values[:n_recommendations]
 
 
 # Recherche un titre proche de la requête
@@ -268,7 +274,11 @@ movie_titles = dict(zip(movies["movieid"], movies["title"]))
 imdb_dict = dict(zip(movies_links_df["movieid"], movies_links_df["imdbid"]))
 # Créer une liste de tous les titres de films
 all_titles = movies["title"].tolist()
-
+# Créer un dataset surprise pour les recommandations
+reader = Reader(rating_scale = (0, 5))
+ratings_surprise = Dataset.load_from_df(ratings[["userid", "movieid", "rating"]])
+# Construire le jeu d'entraînement complet à partir du DataFrame df_surprise
+train_set = ratings_surprise.build_full_trainset()
 print("############ FIN DES CHARGEMENTS ############")
 # ---------------------------------------------------------------
 

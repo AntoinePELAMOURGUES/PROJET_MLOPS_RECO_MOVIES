@@ -1,7 +1,7 @@
 # Define namespaces for Kubernetes
 NAMESPACE1 = api
 NAMESPACE2 = airflow
-NAMESPACE4 = prom
+
 
 # Project_directory
 PROJECT_DIRECTORY = /home/antoine/PROJET_MLOPS_RECO_MOVIES
@@ -97,13 +97,6 @@ start-api:
 	kubectl apply -f kubernetes/deployments/fastapi-deployment.yml
 	kubectl apply -f kubernetes/deployments/streamlit-deployment.yml
 	kubectl apply -f kubernetes/services/api-service.yml
-
-start-prometheus:
-	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
-	helm repo update
-	helm install prometheus prometheus-community/kube-prometheus-stack --namespace $(NAMESPACE4) --create-namespace -f kubernetes/prometheus/values.yaml
-	kubectl apply -f kubernetes/secrets/mlflow-secrets.yaml
-
 
 # Delete persistent volumes for Airflow (if they exist)
 delete-pv-airflow:

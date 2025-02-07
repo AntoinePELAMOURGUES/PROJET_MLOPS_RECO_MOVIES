@@ -1,5 +1,15 @@
 auth:
     enabled: true
     username: user
-    password: reco_movies
+    password: "reco_movies"
+
+
+metrics:
+    enabled: true
+    annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.tracking.service.ports.http }}"
+
+    serviceMonitor:
+        enabled: true
 
