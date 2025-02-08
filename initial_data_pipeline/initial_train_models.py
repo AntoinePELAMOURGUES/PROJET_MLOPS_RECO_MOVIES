@@ -146,7 +146,7 @@ def train_matrix_factorization_model(df, data_directory):
     user_ids = mat_ratings.index.tolist()
     titles = mat_ratings.columns.tolist()
     # Appliquer la factorisation matricielle
-    svd = TruncatedSVD(n_components=100)
+    svd = TruncatedSVD(n_components=50)
     ratings_red = svd.fit_transform(sparse_ratings.T)
     item_similarity = cosine_similarity(ratings_red)
     item_similarity = pd.DataFrame(item_similarity, index=titles, columns=titles)
@@ -170,7 +170,6 @@ if __name__ == "__main__":
     ratings = load_data(raw_data_relative_path, "processed_ratings.csv")
     df = pd.merge(ratings, movies, on="movieid", how="left")
     df = filterred_data(df)
-    # df = df.sample(frac=0.02, random_state=42).reset_index(drop=True)
     print("Entrainement du modèle TF-IDF")
     train_TFIDF_model(movies, data_directory)
     print("Entrainement du modèle de factorisation matricielle")
