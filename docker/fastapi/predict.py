@@ -2,7 +2,6 @@ import os
 import pandas as pd
 import json
 import pickle
-from surprise.prediction_algorithms.matrix_factorization import SVD
 import numpy as np
 from rapidfuzz import process
 from fastapi import APIRouter, HTTPException
@@ -13,8 +12,7 @@ from pydantic import BaseModel
 import requests
 import logging
 from kubernetes import client, config
-from surprise import Reader
-from surprise import Dataset
+import joblib
 
 
 tmdb_token = os.getenv("TMDB_API_TOKEN")
@@ -91,36 +89,67 @@ def load_model(model_name):
     return model
 
 
+# Chargement des données matrix_factorization_model
+def load_model_artifacts(data_directory):
+    """Charge les artefacts du modèle sauvegardés."""
+    svd = joblib.load(os.path.join(data_directory, "svd_model.joblib"))
+    with open(os.path.join(data_directory, "titles.pkl"), "rb") as f:
+        titles = pickle.load(f)
+    item_similarity = joblib.load(
+        os.path.join(data_directory, "item_similarity.joblib")
+    )
+    mat_ratings = joblib.load(os.path.join(data_directory, "mat_ratings.joblib"))
+    return mat_ratings, item_similarity, titles, svd
+
+
 # Fonction pour obtenir des recommandations pour un utilisateur donné
-def get_user_recommendations(
-    ratings_df, user_id: int, model: SVD, n_recommendations: int = 24
+def pred_item(mat_ratings, item_similarity, k, user_id):
+    # Sélectionner dans mat_ratings les films qui n'ont pas été encore lu par le user
+    to_predict = mat_ratings.loc[user_id][mat_ratings.loc[user_id] == 0]
+    # Itérer sur tous ces films
+    for i in to_predict.index:
+        # Trouver les k films les plus similaires en excluant le film lui-même
+        similar_items = item_similarity.loc[i].sort_values(ascending=False)[1 : k + 1]
+        # Calcul de la norme du vecteur similar_items
+        norm = np.sum(np.abs(similar_items))
+        # Récupérer les notes données par l'utilisateur aux k plus proches voisins
+        ratings = mat_ratings[similar_items.index].loc[user_id]
+        # Calculer le produit scalaire entre ratings et similar_items
+        scalar_prod = np.dot(ratings, similar_items)
+        # Calculer la note prédite pour le film i
+        pred = scalar_prod / norm
+        # Remplacer par la prédiction
+        to_predict[i] = pred
+    return to_predict
+
+
+# Fonction pour obtenir les recommandations sans notion d'user_id
+def load_tfidf_model_artifacts(data_directory):
+    """Charge les artefacts du modèle TF-IDF sauvegardés."""
+    tfidf = joblib.load(os.path.join(data_directory, "tfidf_model.joblib"))
+    sim_cosinus = joblib.load(os.path.join(data_directory, "sim_cosinus.joblib"))
+    indices = pd.read_pickle(os.path.join(data_directory, "indices.pkl"))
+    return tfidf, sim_cosinus, indices
+
+
+def recommandations(
+    titre, sim_cosinus, indices, title_to_movieid, num_recommandations=10
 ):
-    """Obtenir des recommandations pour un utilisateur donné."""
-    # Initialiser une liste vide pour stocker les paires (utilisateur, movie) pour le jeu "anti-testset"
-    anti_testset = []
-    # Convertir l'ID de l'utilisateur externe en l'ID interne utilisé par Surprise
-    targetUser = train_set.to_inner_uid(user_id)
-    # Obtenir la valeur de remplissage à utiliser (moyenne globale des notes du jeu d'entraînement)
-    moyenne = train_set.global_mean
-    # Obtenir les évaluations de l'utilisateur cible pour les movies
-    user_note = train_set.ur[targetUser]
-    # Extraire la liste des movies notés par l'utilisateur
-    user_movie = [item for (item,_) in (user_note)]
-    # Obtenir toutes les notations du jeu d'entraînement
-    ratings = train_set.all_ratings()
-    # Boucle sur tous les items du jeu d'entraînement
-    for movie in train_set.all_items():
-    # Si l'item n'a pas été noté par l'utilisateur
-        if movie not in user_movie:
-            # Ajouter la paire (utilisateur, movie, valeur de remplissage) à la liste "anti-testset"
-            anti_testset.append((user_id, train_set.to_raw_iid(movie), moyenne))
-    predictionsSVD = model.test(anti_testset)
-    # Convertir les prédictions en un DataFrame pandas
-    predictionsSVD = pd.DataFrame(predictionsSVD)
-    # Trier les prédictions par la colonne 'est' (estimation) en ordre décroissant
-    predictionsSVD.sort_values(by=['est'], inplace=True, ascending=False)
-    # Afficher les 10 meilleures prédictions
-    return predictionsSVD["iid"].values[:n_recommendations]
+    """Fonction qui à partir des indices trouvés, renvoie les movie_id des films les plus similaires."""
+    # récupérer dans idx l'indice associé au titre depuis la série indices
+    idx = indices[titre]
+    # garder dans une liste les scores de similarité correspondants à l'index du film cible
+    score_sim = list(enumerate(sim_cosinus[idx]))
+    #  trier les scores de similarité, trouver les plus similaires et récupérer ses indices
+    score_sim = sorted(score_sim, key=lambda x: x[1], reverse=True)
+    # Obtenir les scores des 10 films les plus similaires
+    top_similair = score_sim[1 : num_recommandations + 1]
+    # Obtenir les indices des films
+    res = [(indices.index[idx], score) for idx, score in top_similair]
+    result = []
+    for i in range(len(res)):
+        result.append(title_to_movieid[res[i][0]])
+    return result
 
 
 # Recherche un titre proche de la requête
@@ -137,19 +166,6 @@ def movie_finder(all_titles, title):
     return (
         closest_match[0] if closest_match else None
     )  # Retourne None si aucun match n'est trouvé
-
-
-# Focntion qui regroupe les recommandations
-def get_content_based_recommendations(
-    all_titles, title_string, cosine_sim, n_recommendations=15
-):
-    title = movie_finder(all_titles, title_string)
-    idx = movie_idx[title]
-    sim_scores = list(enumerate(cosine_sim[idx]))
-    sim_scores = sorted(sim_scores, key=lambda x: x[1], reverse=True)
-    sim_scores = sim_scores[1 : (n_recommendations + 1)]
-    similar_movies = [i[0] for i in sim_scores]
-    return similar_movies
 
 
 def format_movie_id(movie_id):
@@ -189,9 +205,6 @@ def api_tmdb_request(movie_ids):
             break
 
     return results
-
-
-#
 
 
 # ---------------------------------------------------------------
@@ -257,28 +270,22 @@ print("############ DEBUT DES CHARGEMENTS ############")
 ratings = load_csv_to_df("/data/processed_ratings.csv")
 movies = load_csv_to_df("/data/processed_movies.csv")
 links = load_csv_to_df("/data/processed_links.csv")
-# ratings = fetch_ratings()
-# movies = fetch_movies()
-# links = fetch_links()
-# Chargement d'un modèle SVD pré-entraîné pour les recommandations
-model_svd = load_model("model_SVD.pkl")
-# Chargement de la matrice cosinus similarity
-similarity_cosinus = np.load("/models/cosine_similarity_matrix.npy")
+# Charger les artefacts du modèle
+mat_ratings, item_similarity, titles, svd = load_model_artifacts("/models/")
+# Charger les artefacts du modèle
+tfidf, sim_cosinus, indices = load_tfidf_model_artifacts("/models/")
 # Création d'un dataframe pour les liens entre les films et les ID IMDB
 movies_links_df = movies.merge(links, on="movieid", how="left")
 # Création de dictionnaires pour faciliter l'accès aux titres et aux couvertures des films par leur ID
 movie_idx = dict(zip(movies["title"], list(movies.index)))
 # Création de dictionnaires pour accéder facilement aux titres et aux couvertures des films par leur ID
 movie_titles = dict(zip(movies["movieid"], movies["title"]))
+# Création d'un dictionnaire pour liier title et movieid
+title_to_movieid = dict(zip(movies["title"], movies["movieid"]))
 # Créer un dictionnaire pour un accès rapide
 imdb_dict = dict(zip(movies_links_df["movieid"], movies_links_df["imdbid"]))
 # Créer une liste de tous les titres de films
 all_titles = movies["title"].tolist()
-# Créer un dataset surprise pour les recommandations
-reader = Reader(rating_scale = (0, 5))
-ratings_surprise = Dataset.load_from_df(ratings[["userid", "movieid", "rating"]])
-# Construire le jeu d'entraînement complet à partir du DataFrame df_surprise
-train_set = ratings_surprise.build_full_trainset()
 print("############ FIN DES CHARGEMENTS ############")
 # ---------------------------------------------------------------
 
@@ -394,13 +401,12 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
     try:
         # Forcer la conversion en int
         user_id = int(user_request.userId)
-        recommendations = get_user_recommendations(
-            ratings, user_id, model_svd, n_recommendations=24
-        )
+        recommendations = pred_item(mat_ratings, item_similarity, 12, user_id)
+        recommandations = recommandations.sort_values(ascending=False).head(12)
+        titles = recommandations.index.tolist()
         logger.info(f"Recommandations pour l'utilisateur {userId}: {recommendations}")
-        imdb_list = [
-            imdb_dict[movie_id] for movie_id in recommendations if movie_id in imdb_dict
-        ]
+        reco = [title_to_movieid[title] for title in titles]
+        imdb_list = [imdb_dict[movie_id] for movie_id in reco if movie_id in imdb_dict]
         start_tmdb_time = time.time()
         results = api_tmdb_request(imdb_list)
         tmdb_duration = time.time() - start_tmdb_time
@@ -464,14 +470,14 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
         method="POST", endpoint="/predict/similar_movies"
     ).inc()
     movie_title = user_request.movie_title
+    movie_title = movie_finder(all_titles, movie_title)
     try:
         # Récupérer les ID des films recommandés en utilisant la fonction de similarité
-        recommendations = get_content_based_recommendations(
-            movie_titles, movie_title, similarity_cosinus, n_recommendations=24
+        recommendations = recommandations(
+            movie_title, sim_cosinus, indices, num_recommandations=12
         )
-        movies_id = [movies["movieid"].iloc[i] for i in recommendations]
         imdb_list = [
-            imdb_dict[movie_id] for movie_id in movies_id if movie_id in imdb_dict
+            imdb_dict[movie_id] for movie_id in recommendations if movie_id in imdb_dict
         ]
         start_tmdb_time = time.time()
         results = api_tmdb_request(imdb_list)

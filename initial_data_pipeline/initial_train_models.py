@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.decomposition import TruncatedSVD
-
+import joblib
 
 # import mlflow
 
@@ -84,6 +84,7 @@ def filterred_data(df):
         os.environ["MLFLOW_TRACKING_PASSWORD"] = mlflow_password
 
 
+########" MODELE DE RECOMMANDATION DE FILMS - SANS USERID ########"
 def train_TFIDF_model(df, data_directory):
     """
     Entraîne un modèle TF-IDF pour extraire des caractéristiques des genres de films.
@@ -110,26 +111,18 @@ def train_TFIDF_model(df, data_directory):
     # Calculer la similarité cosinus par morceaux
     sim_cosinus = cosine_similarity(tfidf_matrix, tfidf_matrix)
     print(f"Dimensions de la matrice de similarité cosinus : {sim_cosinus.shape}")
-
+    indices = pd.Series(range(0, len(df)), index=df["title"])
     os.makedirs(data_directory, exist_ok=True)  # Crée le répertoire si nécessaire
 
-    # Enregistrement de la similarité cosinus avec scipy.sparse
-    np.save(f"{data_directory}/cosine_similarity_tfidf.npy", sim_cosinus)
-    print(
-        f"Matrice de similarité cosinus enregistrée sous {data_directory}/cosine_similarity_tfidf.npy."
-    )
+    # Sauvegarder les éléments essentiels
+    joblib.dump(tfidf, os.path.join(data_directory, "tfidf_model.joblib"))
+    joblib.dump(sim_cosinus, os.path.join(data_directory, "sim_cosinus.joblib"))
+    indices.to_pickle(os.path.join(data_directory, "indices.pkl"))
 
-    # Enregistrer le modèle avec MLflow
-    # mlflow.sklearn.log_model(tfidf, "tfidf_model")
+    return tfidf, sim_cosinus, indices
 
-    end_time = datetime.now()
 
-    duration = end_time - start_time
-
-    print(f"Durée de l'entraînement : {duration}")
-    # mlflow.log_param("training_duration", duration.total_seconds())
-
-    # mlflow.end_run()  # Finir l'exécution de l'expérience MLflow
+#### MODELE DE RECOMMANDATION DE FILMS - AVEC USERID ####
 
 
 def train_matrix_factorization_model(df, data_directory):
@@ -141,7 +134,7 @@ def train_matrix_factorization_model(df, data_directory):
 
     start_time = datetime.now()  # Démarrer la mesure du temps
 
-    # df = df.sample(frac=0.08, random_state=42).reset_index(drop=True)
+    df = df.sample(frac=0.02, random_state=42).reset_index(drop=True)
     mat_ratings = pd.pivot_table(
         data=df, values="rating", columns="title", index="userid"
     )
@@ -158,22 +151,14 @@ def train_matrix_factorization_model(df, data_directory):
     item_similarity = cosine_similarity(ratings_red)
     item_similarity = pd.DataFrame(item_similarity, index=titles, columns=titles)
 
-    # Enregistrer le modèle avec NumPy
-    np.save(f"{data_directory}/item_similarity.npy", item_similarity)
-    print(
-        f"Matrice de similarité enregistrée avec NumPy sous {data_directory}/item_similarity.npy."
-    )
+    # Sauvegarder les éléments essentiels
+    joblib.dump(svd, os.path.join(data_directory, "svd_model.joblib"))
+    with open(os.path.join(data_directory, "titles.pkl"), "wb") as f:
+        pickle.dump(titles, f)
+    joblib.dump(item_similarity, os.path.join(data_directory, "item_similarity.joblib"))
+    joblib.dump(mat_ratings, os.path.join(data_directory, "mat_ratings.joblib"))
 
-    # Enregistrer le modèle avec MLflow
-    # mlflow.sklearn.log_model(svd, "matrix_factorization_model")
-
-    end_time = datetime.now()
-
-    duration = end_time - start_time
-    # mlflow.log_param("training_duration", duration.total_seconds())
-
-    # mlflow.end_run()  # Finir l'exécution de l'expérience MLflow
-    print(f"Durée de l'entraînement : {duration}")
+    return mat_ratings, item_similarity, titles, svd
 
 
 if __name__ == "__main__":
@@ -185,7 +170,7 @@ if __name__ == "__main__":
     ratings = load_data(raw_data_relative_path, "processed_ratings.csv")
     df = pd.merge(ratings, movies, on="movieid", how="left")
     df = filterred_data(df)
-    df = df.sample(frac=0.02, random_state=42).reset_index(drop=True)
+    # df = df.sample(frac=0.02, random_state=42).reset_index(drop=True)
     print("Entrainement du modèle TF-IDF")
     train_TFIDF_model(movies, data_directory)
     print("Entrainement du modèle de factorisation matricielle")
