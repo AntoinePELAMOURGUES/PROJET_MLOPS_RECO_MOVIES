@@ -13,8 +13,10 @@ import requests
 import logging
 from kubernetes import client, config
 import joblib
+from surprise import Dataset, Reader
+from surprise.prediction_algorithms.matrix_factorization import SVD
 
-
+# Récupérer le token TMDB API depuis les variables d'environnement
 tmdb_token = os.getenv("TMDB_API_TOKEN")
 
 # Configuration du logger pour afficher les informations de débogage
@@ -24,7 +26,7 @@ logger = logging.getLogger(__name__)
 # Charger la configuration Kubernetes
 config.load_incluster_config()
 
-# Définir le volume et le montage du volume
+# Définir les volumes pour le stockage des modèles et des données brutes
 volume1 = client.V1Volume(
     name="model-storage",
     persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(
@@ -39,30 +41,34 @@ volume2 = client.V1Volume(
     ),
 )
 
+# Définir les points de montage des volumes
 volume1_mount = client.V1VolumeMount(name="model-storage", mount_path="/models")
-
 volume2_mount = client.V1VolumeMount(name="raw-storage", mount_path="/data")
 
-# ROUTEUR POUR GERER LES ROUTES PREDICT
-
+# Routeur pour gérer les routes de prédiction
 router = APIRouter(
     prefix="/predict",  # Préfixe pour toutes les routes dans ce routeur
     tags=["predict"],  # Tag pour la documentation
 )
 
 
-# ENSEMBLE DES FONCTIONS UTILISEES
-
-
+# Fonction pour charger un fichier CSV en DataFrame par morceaux
 def load_csv_to_df(file_path: str, chunk_size: int = 2000) -> pd.DataFrame:
-    """Charge un fichier CSV en DataFrame par morceaux."""
+    """Charge un fichier CSV en DataFrame par morceaux pour gérer les grands fichiers.
+
+    Args:
+        file_path (str): Chemin vers le fichier CSV.
+        chunk_size (int, optional): Taille des morceaux pour la lecture. Defaults to 2000.
+
+    Returns:
+        pd.DataFrame: DataFrame contenant les données du fichier CSV. Retourne un DataFrame vide en cas d'erreur.
+    """
     try:
         # Initialiser une liste pour stocker les morceaux
         chunks = []
 
         # Lire le fichier CSV par morceaux
         for chunk in pd.read_csv(file_path, chunksize=chunk_size):
-            # Traitez chaque morceau ici si nécessaire
             chunks.append(chunk)
 
         # Concaténer tous les morceaux en un seul DataFrame
@@ -75,72 +81,112 @@ def load_csv_to_df(file_path: str, chunk_size: int = 2000) -> pd.DataFrame:
         return pd.DataFrame()  # Retourner un DataFrame vide en cas d'erreur
 
 
-# Chargement du dernier modèle
-def load_model(model_name):
-    """Charge le modèle à partir du répertoire monté."""
+# Fonction pour charger le modèle
+def load_model(model_name: str):
+    """Charge le modèle à partir du répertoire monté.
+
+    Args:
+        model_name (str): Nom du fichier du modèle.
+
+    Returns:
+        tuple: Un tuple contenant le modèle et le lecteur associé.
+
+    Raises:
+        FileNotFoundError: Si le modèle n'existe pas dans le répertoire spécifié.
+    """
     model_path = f"/models/{model_name}"
     if not os.path.exists(model_path):
         raise FileNotFoundError(
             f"Le modèle {model_name} n'existe pas dans {model_path}."
         )
     with open(model_path, "rb") as file:
-        model = pickle.load(file)
+        model_data = pickle.load(file)
+        model = model_data["model"]
+        reader = model_data["reader"]
         print(f"Modèle chargé depuis {model_path}")
-    return model
+    return model, reader
 
 
-# Chargement des données matrix_factorization_model
-def load_model_artifacts(data_directory):
-    """Charge les artefacts du modèle sauvegardés."""
-    svd = joblib.load(os.path.join(data_directory, "svd_model.joblib"))
-    with open(os.path.join(data_directory, "titles.pkl"), "rb") as f:
-        titles = pickle.load(f)
-    item_similarity = joblib.load(
-        os.path.join(data_directory, "item_similarity.joblib")
-    )
-    mat_ratings = joblib.load(os.path.join(data_directory, "mat_ratings.joblib"))
-    return mat_ratings, item_similarity, titles, svd
+# Fonction pour recommander des films à un utilisateur identifié
+def recommend_movies(
+    model: SVD, user_id: int, df: pd.DataFrame, top_n: int = 15
+) -> list:
+    """Recommande des films à un utilisateur en fonction de ses évaluations prédites.
+
+    Args:
+        model (SVD): Le modèle SVD entraîné.
+        user_id (int): L'ID de l'utilisateur pour lequel on veut des recommandations.
+        df (pd.DataFrame): DataFrame contenant les données des films et les évaluations.
+        top_n (int, optional): Le nombre de films à recommander. Defaults to 15.
+
+    Returns:
+        list: Une liste des top_n films recommandés.
+    """
+    # Obtenir la liste des films que l'utilisateur a déjà évalués
+    movies_already_rated = df[df["userid"] == user_id]["movieid"].unique()
+
+    # Créer une liste de tous les films possibles
+    all_movie_ids = df["movieid"].unique()
+
+    # Filtrer les films que l'utilisateur n'a pas encore évalués
+    movies_to_predict = [
+        movie_id for movie_id in all_movie_ids if movie_id not in movies_already_rated
+    ]
+
+    # Faire des prédictions pour chaque film non évalué
+    predictions = []
+    for movie_id in movies_to_predict:
+        predictions.append((movie_id, model.predict(user_id, movie_id).est))
+
+    # Trier les prédictions par ordre décroissant d'évaluation prédite
+    predictions.sort(key=lambda x: x[1], reverse=True)
+
+    # Retourner les top_n films
+    top_recommendations = [movie_id for movie_id, _ in predictions[:top_n]]
+    return top_recommendations
 
 
-# Fonction pour obtenir des recommandations pour un utilisateur donné
-def pred_item(mat_ratings, item_similarity, k, user_id):
-    # Sélectionner dans mat_ratings les films qui n'ont pas été encore lu par le user
-    to_predict = mat_ratings.loc[user_id][mat_ratings.loc[user_id] == 0]
-    # Itérer sur tous ces films
-    for i in to_predict.index:
-        # Trouver les k films les plus similaires en excluant le film lui-même
-        similar_items = item_similarity.loc[i].sort_values(ascending=False)[1 : k + 1]
-        # Calcul de la norme du vecteur similar_items
-        norm = np.sum(np.abs(similar_items))
-        # Récupérer les notes données par l'utilisateur aux k plus proches voisins
-        ratings = mat_ratings[similar_items.index].loc[user_id]
-        # Calculer le produit scalaire entre ratings et similar_items
-        scalar_prod = np.dot(ratings, similar_items)
-        # Calculer la note prédite pour le film i
-        pred = scalar_prod / norm
-        # Remplacer par la prédiction
-        to_predict[i] = pred
-    return to_predict
+# Fonction pour charger les artefacts du modèle TF-IDF
+def load_tfidf_model_artifacts(data_directory: str):
+    """Charge les artefacts du modèle TF-IDF sauvegardés.
 
+    Args:
+        data_directory (str): Le chemin vers le répertoire contenant les artefacts du modèle.
 
-# Fonction pour obtenir les recommandations sans notion d'user_id
-def load_tfidf_model_artifacts(data_directory):
-    """Charge les artefacts du modèle TF-IDF sauvegardés."""
+    Returns:
+        tuple: Un tuple contenant le modèle TF-IDF, la matrice de similarité cosinus et les indices.
+    """
     tfidf = joblib.load(os.path.join(data_directory, "tfidf_model.joblib"))
     sim_cosinus = joblib.load(os.path.join(data_directory, "sim_cosinus.joblib"))
     indices = pd.read_pickle(os.path.join(data_directory, "indices.pkl"))
     return tfidf, sim_cosinus, indices
 
 
+# Fonction pour obtenir les recommandations sans notion d'user_id
 def recommandations(
-    titre, sim_cosinus, indices, title_to_movieid, num_recommandations=10
-):
-    """Fonction qui à partir des indices trouvés, renvoie les movie_id des films les plus similaires."""
-    # récupérer dans idx l'indice associé au titre depuis la série indices
+    titre: str,
+    sim_cosinus: np.ndarray,
+    indices: pd.Series,
+    title_to_movieid: Dict[str, int],
+    num_recommandations: int = 10,
+) -> list:
+    """À partir des indices trouvés, renvoie les movie_id des films les plus similaires.
+
+    Args:
+        titre (str): Titre du film de référence.
+        sim_cosinus (np.ndarray): Matrice de similarité cosinus.
+        indices (pd.Series): Série contenant les indices des films.
+        title_to_movieid (Dict[str, int]): Dictionnaire associant les titres de films à leurs IDs.
+        num_recommandations (int, optional): Nombre de recommandations à retourner. Defaults to 10.
+
+    Returns:
+        list: Une liste des movie_id des films les plus similaires.
+    """
+    # Récupérer dans idx l'indice associé au titre depuis la série indices
     idx = indices[titre]
-    # garder dans une liste les scores de similarité correspondants à l'index du film cible
+    # Garder dans une liste les scores de similarité correspondants à l'index du film cible
     score_sim = list(enumerate(sim_cosinus[idx]))
-    #  trier les scores de similarité, trouver les plus similaires et récupérer ses indices
+    # Trier les scores de similarité, trouver les plus similaires et récupérer ses indices
     score_sim = sorted(score_sim, key=lambda x: x[1], reverse=True)
     # Obtenir les scores des 10 films les plus similaires
     top_similair = score_sim[1 : num_recommandations + 1]
@@ -153,14 +199,15 @@ def recommandations(
 
 
 # Recherche un titre proche de la requête
-def movie_finder(all_titles, title):
-    """
-    Trouve le titre de film le plus proche d'une requête donnée.
+def movie_finder(all_titles: list, title: str) -> Optional[str]:
+    """Trouve le titre de film le plus proche d'une requête donnée.
+
     Args:
         all_titles (list): Liste de tous les titres de films disponibles.
         title (str): Titre du film à rechercher.
+
     Returns:
-        str: Le titre du film le plus proche trouvé.
+        str: Le titre du film le plus proche trouvé. Retourne None si aucun match n'est trouvé.
     """
     closest_match = process.extractOne(title, all_titles)
     return (
@@ -168,14 +215,30 @@ def movie_finder(all_titles, title):
     )  # Retourne None si aucun match n'est trouvé
 
 
-def format_movie_id(movie_id):
-    """Transforme en ImdbId et  Formate l'ID du film pour qu'il ait 7 chiffres."""
+# Formater l'ID du film pour la requête TMDB
+def format_movie_id(movie_id: int) -> str:
+    """Transforme en ImdbId et Formate l'ID du film pour qu'il ait 7 chiffres.
+
+    Args:
+        movie_id (int): L'ID du film à formater.
+
+    Returns:
+        str: L'ID du film formaté.
+    """
     imdbid_format = str(movie_id).zfill(7)  # Formate l'ID pour qu'il ait 7 chiffres
     return imdbid_format
 
 
-def api_tmdb_request(movie_ids):
-    """Effectue des requêtes à l'API TMDB pour récupérer les informations des films."""
+# Effectuer une requête à l'API TMDB
+def api_tmdb_request(movie_ids: list) -> Dict[str, Any]:
+    """Effectue des requêtes à l'API TMDB pour récupérer les informations des films.
+
+    Args:
+        movie_ids (list): Une liste d'IDs de films (IMDB IDs).
+
+    Returns:
+        Dict[str, Any]: Un dictionnaire contenant les informations des films récupérées depuis TMDB.
+    """
     results = {}
 
     for movie_id in movie_ids:
@@ -207,91 +270,100 @@ def api_tmdb_request(movie_ids):
     return results
 
 
-# ---------------------------------------------------------------
-
 # METRICS PROMETHEUS
-
 collector = CollectorRegistry()
-# Nbre de requête
+
+# Nombre de requêtes
 nb_of_requests_counter = Counter(
     name="predict_nb_of_requests",
-    documentation="number of requests per method or per endpoint",
+    documentation="nombre de requêtes par méthode ou par endpoint",
     labelnames=["method", "endpoint"],
     registry=collector,
 )
-# codes de statut des réponses
+
+# Codes de statut des réponses
 status_code_counter = Counter(
     name="predict_response_status_codes",
-    documentation="Number of HTTP responses by status code",
+    documentation="Nombre de réponses HTTP par code de statut",
     labelnames=["status_code"],
     registry=collector,
 )
+
 # Taille des réponses
 response_size_histogram = Histogram(
     name="http_response_size_bytes",
-    documentation="Size of HTTP responses in bytes",
+    documentation="Taille des réponses HTTP en octets",
     labelnames=["method", "endpoint"],
     registry=collector,
 )
+
 # Temps de traitement par utilisateur
 duration_of_requests_histogram = Histogram(
     name="duration_of_requests",
-    documentation="Duration of requests per method or endpoint",
+    documentation="Durée des requêtes par méthode ou endpoint",
     labelnames=["method", "endpoint", "user_id"],
     registry=collector,
 )
+
 # Erreurs spécifiques
 error_counter = Counter(
     name="api_errors",
-    documentation="Count of API errors by type",
+    documentation="Nombre d'erreurs API par type",
     labelnames=["error_type"],
     registry=collector,
 )
+
 # Nombre de films recommandés
 recommendations_counter = Counter(
     name="number_of_recommendations",
-    documentation="Number of movie recommendations made",
+    documentation="Nombre de recommandations de films effectuées",
     labelnames=["endpoint"],
     registry=collector,
 )
+
 # Temps de traitement des requêtes TMDB
 tmdb_request_duration_histogram = Histogram(
     name="tmdb_request_duration_seconds",
-    documentation="Duration of TMDB API requests",
+    documentation="Durée des requêtes TMDB API",
     labelnames=["endpoint"],
     registry=collector,
 )
 
-# ---------------------------------------------------------------
-
 # CHARGEMENT DES DONNEES AU DEMARRAGE DE API
 print("############ DEBUT DES CHARGEMENTS ############")
-# Chargement de nos dataframe
+
+# Chargement des dataframes
 ratings = load_csv_to_df("/data/processed_ratings.csv")
 movies = load_csv_to_df("/data/processed_movies.csv")
+df = pd.merge(ratings, movies, on="movieid", how="left")
 links = load_csv_to_df("/data/processed_links.csv")
-# Charger les artefacts du modèle
-mat_ratings, item_similarity, titles, svd = load_model_artifacts("/models/")
-# Charger les artefacts du modèle
+
+# Charger les artefacts du modèle SVD
+model, reader = load_model("svd_model_v1.pkl")
+df_svd = Dataset.load_from_df(df[["userid", "movieid", "rating"]], reader=reader)
+
+# Charger les artefacts du modèle TF-IDF
 tfidf, sim_cosinus, indices = load_tfidf_model_artifacts("/models/")
+
 # Création d'un dataframe pour les liens entre les films et les ID IMDB
 movies_links_df = movies.merge(links, on="movieid", how="left")
+
 # Création de dictionnaires pour faciliter l'accès aux titres et aux couvertures des films par leur ID
-movie_idx = dict(zip(movies["title"], list(movies.index)))
-# Création de dictionnaires pour accéder facilement aux titres et aux couvertures des films par leur ID
 movie_titles = dict(zip(movies["movieid"], movies["title"]))
-# Création d'un dictionnaire pour liier title et movieid
+
+# Création d'un dictionnaire pour lier title et movieid
 title_to_movieid = dict(zip(movies["title"], movies["movieid"]))
+
 # Créer un dictionnaire pour un accès rapide
 imdb_dict = dict(zip(movies_links_df["movieid"], movies_links_df["imdbid"]))
+
 # Créer une liste de tous les titres de films
 all_titles = movies["title"].tolist()
+
 print("############ FIN DES CHARGEMENTS ############")
-# ---------------------------------------------------------------
+
 
 # REQUETES API
-
-
 # Modèle Pydantic pour la récupération de l'user_id lié aux films
 class UserRequest(BaseModel):
     userId: Optional[int]  # Forcer le type int explicitement
@@ -303,22 +375,27 @@ class UserRequest(BaseModel):
 
 @router.post("/best_user_movies")
 async def predict(user_request: UserRequest) -> Dict[str, Any]:
-    """
-    Route API pour récupérer les 3 films les mieux notés de l'utilisateur.
-    Args: user_request (UserRequest): Un objet contenant les détails de la requête de l'utilisateur, y compris l'ID utilisateur et le titre du film.
+    """Route API pour récupérer les 3 films les mieux notés de l'utilisateur.
+
+    Args:
+        user_request (UserRequest): Un objet contenant les détails de la requête de l'utilisateur,y compris l'ID utilisateur et le titre du film.
+
     Returns:
         Dict[str, Any]: Un dictionnaire contenant le choix de l'utilisateur et les recommandations de films.
     """
     logger.info(f"Requête reçue pour l'utilisateur identifié: {user_request}")
+
     # Démarrer le chronomètre pour mesurer la durée de la requête
     start_time = time.time()
+
     # Incrémenter le compteur de requêtes pour prometheus
     nb_of_requests_counter.labels(
         method="POST", endpoint="/predict/best_user_movies"
     ).inc()
+
     # Récupération de l'email utilisateur de la session
-    userId = user_request.userId  # récupéartion de l'userId dans la base de données
-    # Récupérer les ID des films recommandés en utilisant la fonction de similarité
+    userId = user_request.userId  # récupération de l'userId dans la base de données
+
     try:
         # Forcer la conversion en int
         user_id = int(userId)
@@ -330,20 +407,27 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
             for movie_id in best_movies["movieid"]
             if movie_id in imdb_dict
         ]
+
         logger.info(f"Meilleurs films pour l'utilisateur {userId}: {imdb_list}")
+
         start_tmdb_time = time.time()
         results = api_tmdb_request(imdb_list)
         tmdb_duration = time.time() - start_tmdb_time
+
         tmdb_request_duration_histogram.labels(
             endpoint="/predict/best_user_movies"
         ).observe(tmdb_duration)
+
         recommendations_counter.labels(endpoint="/predict/best_user_movies").inc(
             len(results)
         )
+
         # Mesurer la taille de la réponse et l'enregistrer
         response_size = len(json.dumps(results))
+
         # Calculer la durée et enregistrer dans l'histogramme
         duration = time.time() - start_time
+
         # Enregistrement des métriques pour Prometheus
         status_code_counter.labels(
             status_code="200"
@@ -358,11 +442,14 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
         ).observe(
             response_size
         )  # Enregistrer la taille de la réponse
+
         # Utiliser le logger pour voir les résultats
         logger.info(f"Api response: {results}")
         logger.info(f"Durée de la requête: {duration} secondes")
         logger.info(f"Taille de la réponse: {response_size} octets")
+
         return results
+
     except ValueError as e:
         status_code_counter.labels(
             status_code="400"
@@ -373,53 +460,74 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
         logger.error(f"Erreur de conversion de l'ID utilisateur: {e}")
         raise HTTPException(
             status_code=400, detail="L'ID utilisateur doit être un nombre entier"
-        )
+        ) from e
+    except Exception as e:
+        status_code_counter.labels(
+            status_code="500"
+        ).inc()  # Compter les erreurs du serveur
+        error_counter.labels(
+            error_type="InternalServerError"
+        ).inc()  # Enregistrer l'erreur
+        logger.error(f"Erreur interne du serveur: {e}")
+        raise HTTPException(status_code=500, detail="Erreur interne du serveur") from e
 
 
-# Route API concernant les utilisateurs déjà identifiés avec titre de films
 @router.post("/identified_user")
 async def predict(user_request: UserRequest) -> Dict[str, Any]:
-    """
-    Route API pour obtenir des recommandations de films basées sur l'ID utilisateur.
-    Args: user_request (UserRequest): Un objet contenant les détails de la requête de l'utilisateur, y compris l'ID utilisateur et le titre du film.
+    """Route API pour obtenir des recommandations de films basées sur l'ID utilisateur.
+
+    Args:
+        user_request (UserRequest): Un objet contenant les détails de la requête de l'utilisateur,y compris l'ID utilisateur.
+
     Returns:
-        Dict[str, Any]: Un dictionnaire contenant le choix de l'utilisateur et les recommandations de films.
+        Dict[str, Any]: Un dictionnaire contenant des recommandations de films.
     """
     logger.info(f"Requête reçue pour l'utilisateur identifié: {user_request}")
+
     # Debug du type et de la valeur de userId
     logger.info(f"Type de userId reçu: {type(user_request.userId)}")
     logger.info(f"Valeur de userId reçue: {user_request.userId}")
+
     # Démarrer le chronomètre pour mesurer la durée de la requête
     start_time = time.time()
+
     # Incrémenter le compteur de requêtes pour prometheus
     nb_of_requests_counter.labels(
         method="POST", endpoint="/predict/identified_user"
     ).inc()
-    # Récupération de l'email utilisateur de la session
-    userId = user_request.userId  # récupéartion de l'userId dans la base de données
-    # Récupérer les ID des films recommandés en utilisant la fonction de similarité
+
     try:
         # Forcer la conversion en int
         user_id = int(user_request.userId)
-        recommendations = pred_item(mat_ratings, item_similarity, 12, user_id)
-        recommandations = recommandations.sort_values(ascending=False).head(12)
-        titles = recommandations.index.tolist()
-        logger.info(f"Recommandations pour l'utilisateur {userId}: {recommendations}")
-        reco = [title_to_movieid[title] for title in titles]
-        imdb_list = [imdb_dict[movie_id] for movie_id in reco if movie_id in imdb_dict]
+        recommendations = recommend_movies(model, user_id, df_svd, top_n=15)
+        titles = [
+            movie_titles[movie_id]
+            for movie_id in recommendations
+            if movie_id in movie_titles
+        ]
+
         start_tmdb_time = time.time()
+        imdb_list = [
+            imdb_dict[movie_id] for movie_id in recommendations if movie_id in imdb_dict
+        ]
+
         results = api_tmdb_request(imdb_list)
         tmdb_duration = time.time() - start_tmdb_time
+
         tmdb_request_duration_histogram.labels(
             endpoint="/predict/identified_user"
         ).observe(tmdb_duration)
+
         recommendations_counter.labels(endpoint="/predict/identified_user").inc(
             len(results)
         )
+
         # Mesurer la taille de la réponse et l'enregistrer
         response_size = len(json.dumps(results))
+
         # Calculer la durée et enregistrer dans l'histogramme
         duration = time.time() - start_time
+
         # Enregistrement des métriques pour Prometheus
         status_code_counter.labels(
             status_code="200"
@@ -434,6 +542,7 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
         ).observe(
             response_size
         )  # Enregistrer la taille de la réponse
+
         # Utiliser le logger pour voir les résultats
         logger.info(f"Api response: {results}")
         logger.info(f"Durée de la requête: {duration} secondes")
@@ -450,72 +559,13 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
         logger.error(f"Erreur de conversion de l'ID utilisateur: {e}")
         raise HTTPException(
             status_code=400, detail="L'ID utilisateur doit être un nombre entier"
-        )
-
-
-# Route Api recommandation par rapport à un autre film
-@router.post("/similar_movies")
-async def predict(user_request: UserRequest) -> Dict[str, Any]:
-    """
-    Route API pour obtenir des recommandations de films basées sur l'ID utilisateur.
-    Args: user_request (UserRequest): Un objet contenant les détails de la requête de l'utilisateur, y compris l'ID utilisateur et le titre du film.
-    Returns:
-        Dict[str, Any]: Un dictionnaire contenant le choix de l'utilisateur et les recommandations de films.
-    """
-    logger.info(f"Requête reçue pour similar_movies: {user_request}")
-    # Démarrer le chronomètre pour mesurer la durée de la requête
-    start_time = time.time()
-    # Incrémenter le compteur de requêtes pour prometheus
-    nb_of_requests_counter.labels(
-        method="POST", endpoint="/predict/similar_movies"
-    ).inc()
-    movie_title = user_request.movie_title
-    movie_title = movie_finder(all_titles, movie_title)
-    try:
-        # Récupérer les ID des films recommandés en utilisant la fonction de similarité
-        recommendations = recommandations(
-            movie_title, sim_cosinus, indices, num_recommandations=12
-        )
-        imdb_list = [
-            imdb_dict[movie_id] for movie_id in recommendations if movie_id in imdb_dict
-        ]
-        start_tmdb_time = time.time()
-        results = api_tmdb_request(imdb_list)
-        tmdb_duration = time.time() - start_tmdb_time
-        tmdb_request_duration_histogram.labels(
-            endpoint="/predict/similar_movies"
-        ).observe(tmdb_duration)
-        recommendations_counter.labels(endpoint="/predict/similar_movies").inc(
-            len(results)
-        )
-        # Mesurer la taille de la réponse et l'enregistrer
-        response_size = len(json.dumps(results))
-        # Calculer la durée et enregistrer dans l'histogramme
-        duration = time.time() - start_time
-        # Enregistrement des métriques pour Prometheus
-        status_code_counter.labels(
-            status_code="200"
-        ).inc()  # Compter les réponses réussies
-        duration_of_requests_histogram.labels(
-            method="POST", endpoint="/predict/similar_movies", user_id="N/A"
-        ).observe(
-            duration
-        )  # Enregistrer la durée de la requête
-        response_size_histogram.labels(
-            method="POST", endpoint="/predict/similar_movies"
-        ).observe(
-            response_size
-        )  # Enregistrer la taille de la réponse
-        logger.info(f"Api response: {results}")
-        logger.info(f"Durée de la requête: {duration} secondes")
-        logger.info(f"Taille de la réponse: {response_size} octets")
-        return results
+        ) from e
     except Exception as e:
         status_code_counter.labels(
             status_code="500"
-        ).inc()  # Compter les réponses échouées
+        ).inc()  # Compter les erreurs du serveur
         error_counter.labels(
-            error_type="Exception"
-        ).inc()  # Enregistrer l'erreur spécifique
-        logger.error(f"Erreur lors du traitement de la requête: {e}")
-        raise HTTPException(status_code=500, detail="Erreur interne du serveur")
+            error_type="InternalServerError"
+        ).inc()  # Enregistrer l'erreur
+        logger.error(f"Erreur interne du serveur: {e}")
+        raise HTTPException(status_code=500, detail="Erreur interne du serveur") from e

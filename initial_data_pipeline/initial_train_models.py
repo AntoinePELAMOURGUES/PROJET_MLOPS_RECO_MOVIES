@@ -1,20 +1,22 @@
 import os
 import pandas as pd
 import pickle
-from scipy.sparse import csr_matrix, lil_matrix, save_npz
-from datetime import datetime
+from scipy.sparse import csr_matrix, save_npz
 import numpy as np
 from dotenv import load_dotenv
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.decomposition import TruncatedSVD
 import joblib
-
-# import mlflow
+from surprise import Dataset, Reader
+from surprise.prediction_algorithms.matrix_factorization import SVD
+from surprise.model_selection import cross_validate
+import mlflow
 
 # Charger les variables d'environnement à partir du fichier .env
 load_dotenv()
 
+# Récupérer le répertoire du projet
 my_project_directory = os.getenv("MY_PROJECT_DIRECTORY")
 print(f"my_project_directory: {my_project_directory}")
 
@@ -52,31 +54,9 @@ def load_data(raw_data_relative_path, filename):
     except Exception as e:
         print(f"An error occurred while loading data: {e}")
 
-
-def filterred_data(df):
-    """
-    Filtrer les données pour ne conserver que les films ayant reçu au moins 5 évaluations
-    et les utilsateurs ayant évalués au moins 10 films.
-    """
-    user_counts = df["userid"].value_counts()
-    users_with_more_than_10_ratings = user_counts[user_counts > 10].index
-
-    # Étape 2 : Compter le nombre de notes par film
-    movie_counts = df["movieid"].value_counts()
-    movies_with_at_least_5_ratings = movie_counts[movie_counts >= 5].index
-
-    # Étape 3 : Filtrer le DataFrame
-    df = df[
-        (df["userid"].isin(users_with_more_than_10_ratings))
-        & (df["movieid"].isin(movies_with_at_least_5_ratings))
-    ]
-
-    return df
-
     # def authenticate_mlflow():
     """Authentifie MLflow en utilisant les variables d'environnement."""
     mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI"))
-    mlflow.set_experiment("Movie Recommendation Models")
     mlflow_username = os.getenv("MLFLOW_TRACKING_USERNAME")
     mlflow_password = os.getenv("MLFLOW_TRACKING_PASSWORD")
     if mlflow_username and mlflow_password:
@@ -125,52 +105,58 @@ def train_TFIDF_model(df, data_directory):
 #### MODELE DE RECOMMANDATION DE FILMS - AVEC USERID ####
 
 
-def train_matrix_factorization_model(df, data_directory):
-    """
-    Entraîne un modèle de factorisation matricielle pour prédire les évaluations des utilisateurs.
-    """
-    # Démarrer une nouvelle expérience MLflow
-    # mlflow.start_run()
+def train_model(
+    df: pd.DataFrame,
+    data_directory: str,
+    n_factors: int = 150,
+    n_epochs: int = 30,
+    lr_all: float = 0.01,
+    reg_all: float = 0.05,
+) -> SVD:
+    """Entraîne le modèle de recommandation sur les données fournies."""
+    # Diviser les données en ensembles d'entraînement et de test
+    reader = Reader(rating_scale=(0.5, 5))
 
-    start_time = datetime.now()  # Démarrer la mesure du temps
+    data = Dataset.load_from_df(df[["userid", "movieid", "rating"]], reader=reader)
 
-    df = df.sample(frac=0.02, random_state=42).reset_index(drop=True)
-    mat_ratings = pd.pivot_table(
-        data=df, values="rating", columns="title", index="userid"
+    # Extraire le Trainset
+    trainset = data.build_full_trainset()
+
+    model = SVD(n_factors=n_factors, n_epochs=n_epochs, lr_all=lr_all, reg_all=reg_all)
+
+    # Entraîner le modèle
+    model.fit(trainset)
+
+    print("Début de la cross-validation")
+
+    # Effectuer la validation croisée sur le Trainset
+    cv_results = cross_validate(
+        model, data, measures=["RMSE", "MAE"], cv=5, return_train_measures=True
     )
-    mat_ratings = (
-        mat_ratings + 1
-    )  # On ajoute 1 à toutes les notes pour éviter les problèmes de division par 0
-    mat_ratings = mat_ratings.fillna(0)
-    sparse_ratings = csr_matrix(mat_ratings)
-    user_ids = mat_ratings.index.tolist()
-    titles = mat_ratings.columns.tolist()
-    # Appliquer la factorisation matricielle
-    svd = TruncatedSVD(n_components=50)
-    ratings_red = svd.fit_transform(sparse_ratings.T)
-    item_similarity = cosine_similarity(ratings_red)
-    item_similarity = pd.DataFrame(item_similarity, index=titles, columns=titles)
 
-    # Sauvegarder les éléments essentiels
-    joblib.dump(svd, os.path.join(data_directory, "svd_model.joblib"))
-    with open(os.path.join(data_directory, "titles.pkl"), "wb") as f:
-        pickle.dump(titles, f)
-    joblib.dump(item_similarity, os.path.join(data_directory, "item_similarity.joblib"))
-    joblib.dump(mat_ratings, os.path.join(data_directory, "mat_ratings.joblib"))
+    # Afficher les résultats
+    mean_rmse = cv_results["test_rmse"].mean()
+    print("Moyenne des RMSE :", mean_rmse)
 
-    return mat_ratings, item_similarity, titles, svd
+    # Sauvegarder le modèle
+    os.makedirs(data_directory, exist_ok=True)
+    # Sauvegarder le modèle et le contexte (reader)
+
+    with open(os.path.join(data_directory, "svd_model_v1.pkl", "wb")) as file:
+        pickle.dump({"model": model, "reader": reader}, file)
+
+    return model, mean_rmse, reader
 
 
 if __name__ == "__main__":
-    print("########## TRAIN MODELS ##########")
+    print("########## :hammer: TRAIN MODELS ##########")
     raw_data_relative_path = os.path.join(my_project_directory, "data/raw/silver")
     data_directory = os.path.join(my_project_directory, "data/models")
     # authenticate_mlflow()
     movies = load_data(raw_data_relative_path, "processed_movies.csv")
     ratings = load_data(raw_data_relative_path, "processed_ratings.csv")
     df = pd.merge(ratings, movies, on="movieid", how="left")
-    df = filterred_data(df)
     print("Entrainement du modèle TF-IDF")
     train_TFIDF_model(movies, data_directory)
-    print("Entrainement du modèle de factorisation matricielle")
-    train_matrix_factorization_model(df, data_directory)
+    print("Entrainement du modèle Surprise SVD")
+    train_model(df, data_directory)
