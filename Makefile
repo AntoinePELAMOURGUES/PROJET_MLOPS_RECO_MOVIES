@@ -80,19 +80,12 @@ start-mlflow:
 	helm repo add bitnami https://charts.bitnami.com/bitnami
 	helm repo update
 	helm install mlf-ts bitnami/mlflow --namespace $(NAMESPACE2) --create-namespace -f kubernetes/ml_flow/values.yaml
-	kubectl apply -f kubernetes/persistent-volumes/mlflow-storage-pv.yml
-	kubectl apply -f kubernetes/persistent-volumes/mlflow-storage-pvc.yml
-	kubectl apply -f kubernetes/services/mlflow-service.yml
 	kubectl apply -f kubernetes/secrets/mlflow-secrets.yaml
 
 
 # Déployer les services API (FastAPI et Streamlit)
 start-api:
 	kubectl create namespace $(NAMESPACE1) || true
-	kubectl apply -f kubernetes/persistent-volumes/raw-storage-pv.yml
-	kubectl apply -f kubernetes/persistent-volumes/raw-storage-pvc.yml
-	kubectl apply -f kubernetes/persistent-volumes/models-storage-pv.yml
-	kubectl apply -f kubernetes/persistent-volumes/models-storage-pvc.yml
 	kubectl apply -f kubernetes/secrets/api-secrets.yaml
 	kubectl apply -f kubernetes/deployments/fastapi-deployment.yml
 	kubectl apply -f kubernetes/deployments/streamlit-deployment.yml
@@ -115,10 +108,6 @@ change-namespace-api:
 change-namespace-airflow:
 	kubectl config set-context --current --namespace=$(NAMESPACE2)
 
-# Changer le contexte d'espace de noms actuel pour les commandes Kubernetes (MLFlow)
-change-namespace-mlflow:
-	kubectl config set-context --current --namespace=$(NAMESPACE3)
-
 # Nettoyer les espaces de noms spécifiques dans Kubernetes (API)
 clean-kube-api: check-kube
 	kubectl delete namespace $(NAMESPACE1) || true
@@ -127,19 +116,15 @@ clean-kube-api: check-kube
 clean-kube-airflow: check-kube
 	kubectl delete namespace $(NAMESPACE2) || true
 
-# Nettoyer les espaces de noms spécifiques dans Kubernetes (MLFlow)
-clean-kube-mlflow: check-kube
-	kubectl delete namespace $(NAMESPACE3) || true
 
 # Nettoyer tous les espaces de noms spécifiés dans Kubernetes
 clean-kube-all: check-kube
 	kubectl delete namespace $(NAMESPACE1) || true
 	kubectl delete namespace $(NAMESPACE2) || true
-	kubectl delete namespace $(NAMESPACE3) || true
 
 start-service:
 	minikube service airflow-webserver -n airflow
-	minikube service mlflow -n mlflow
+	minikube service mlflow -n airflow
 	minikube service fastapi -n api
 	minikube service streamlit -n api
 	minikube service pgadmin -n airflow

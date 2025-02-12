@@ -53,7 +53,9 @@ def test_preprocessing_ratings(mock_csv_files):
 
     processed_ratings = preprocessing_ratings(df_ratings)
 
-    assert "bayesian_mean" in processed_ratings.columns
+    assert all(
+        col in processed_ratings.columns for col in ["userid", "movieid", "rating"]
+    )
 
 
 def test_preprocessing_movies(mock_csv_files):

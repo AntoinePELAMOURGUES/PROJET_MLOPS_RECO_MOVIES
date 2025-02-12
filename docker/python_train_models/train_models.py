@@ -72,9 +72,9 @@ def authenticate_mlflow():
 ########" MODELE DE RECOMMANDATION DE FILMS - SANS USERID ########"
 def train_TFIDF_model(df, data_directory):
     """
-    Entraîne un modèle TF-IDF pour extraire des caractéristiques des genres de films.
+    Entraîne un modèle TF-IDF pour extraire des caractéristiques des genres de films,
+    et enregistre le modèle directement sur MLflow.
     """
-    # Démarrer une nouvelle expérience MLflow
     with mlflow.start_run() as run:
 
         start_time = datetime.now()  # Démarrer la mesure du temps
@@ -99,26 +99,18 @@ def train_TFIDF_model(df, data_directory):
         print(f"Dimensions de la matrice de similarité cosinus : {sim_cosinus.shape}")
         mlflow.log_param("sim_cosinus_shape", sim_cosinus.shape)
         indices = pd.Series(range(0, len(df)), index=df["title"])
-        os.makedirs(data_directory, exist_ok=True)  # Crée le répertoire si nécessaire
 
-        # Sauvegarder les éléments essentiels
-        joblib.dump(tfidf, os.path.join(data_directory, "tfidf_model.joblib"))
-        joblib.dump(sim_cosinus, os.path.join(data_directory, "sim_cosinus.joblib"))
-        indices.to_pickle(os.path.join(data_directory, "indices.pkl"))
-
-        # Log les modèles avec MLflow
-        mlflow.log_artifact(
-            os.path.join(data_directory, "tfidf_model.joblib"),
-            artifact_path="tfidf_model",
-        )
-        mlflow.log_artifact(
-            os.path.join(data_directory, "sim_cosinus.joblib"),
-            artifact_path="sim_cosinus",
-        )
-        mlflow.log_artifact(
-            os.path.join(data_directory, "indices.pkl"), artifact_path="indices"
+        # Enregistrer le modèle TF-IDF sur MLflow
+        mlflow.sklearn.log_model(
+            tfidf, artifact_path="tfidf_model", registered_model_name="TFIDFModel"
         )
 
+        # Enregistrer sim_cosinus et indices comme artifacts
+        mlflow.log_artifact(
+            pd.DataFrame(sim_cosinus).to_csv(header=False, index=False),
+            artifact_path="sim_cosinus.csv",
+        )
+        mlflow.log_artifact(indices.to_csv(header=True), artifact_path="indices.csv")
         return tfidf, sim_cosinus, indices
 
 
@@ -133,7 +125,9 @@ def train_model(
     lr_all: float = 0.01,
     reg_all: float = 0.05,
 ) -> SVD:
-    """Entraîne le modèle de recommandation sur les données fournies."""
+    """Entraîne le modèle de recommandation sur les données fournies,
+    et enregistre le modèle directement sur MLflow.
+    """
     with mlflow.start_run() as run:
 
         # Log des hyperparamètres du modèle
@@ -170,23 +164,56 @@ def train_model(
 
         # Log les métriques
         mlflow.log_metric("mean_rmse", mean_rmse)
-
-        # Sauvegarder le modèle
-        os.makedirs(data_directory, exist_ok=True)
-
-        # Sauvegarder le modèle et le contexte (reader)
-        model_path = os.path.join(data_directory, "svd_model_v1.pkl")
-        with open(model_path, "wb") as file:
-            pickle.dump({"model": model, "reader": reader}, file)
-        mlflow.log_artifact(model_path, artifact_path="surprise_model")
         mlflow.log_metric("mean_fit_time", np.mean(cv_results["fit_time"]))
         mlflow.log_metric("mean_test_rmse", np.mean(cv_results["test_rmse"]))
 
+        # Enregistrer le modèle Surprise SVD sur MLflow
+        mlflow.pyfunc.log_model(
+            python_model=SurpriseModelWrapper(model=model, reader=reader),
+            artifact_path="surprise_svd_model",
+            registered_model_name="SurpriseSVDModel",
+            code_path=[
+                "./"
+            ],  # Path to the directory containing the code for your model
+            pip_requirements=[
+                "scikit-surprise==1.1.3",
+                "pandas==2.0.0",
+            ],  # Add the library as dependency
+        )
         return model, mean_rmse, reader
 
 
+class SurpriseModelWrapper(mlflow.pyfunc.PythonModel):
+    def __init__(self, model, reader):
+        self.model = model
+        self.reader = reader
+
+    def predict(self, context, model_input):
+        """
+        Make predictions using the wrapped Surprise model.
+        """
+        # Assuming model_input is a DataFrame with 'userid' and 'movieid' columns
+        predictions = []
+        for _, row in model_input.iterrows():
+            userid = row["userid"]
+            movieid = row["movieid"]
+
+            # Ensure user and item are known to the model. If not, return a default prediction.
+            try:
+                prediction = self.model.predict(userid, movieid)
+                predictions.append(prediction.est)
+            except Exception as e:
+                # Handle the case where the user or item is not in the training set
+                print(f"Error predicting for user {userid}, item {movieid}: {e}")
+                predictions.append(
+                    self.reader.rating_scale[0]
+                )  # Or another suitable default
+
+        return predictions
+
+
 if __name__ == "__main__":
-    print("########## :hammer: TRAIN MODELS ##########")
+    print("########## TRAIN MODELS ##########")
     data_directory = "/root/mount_file/models/"
     authenticate_mlflow()
     ratings = fetch_table("ratings")
