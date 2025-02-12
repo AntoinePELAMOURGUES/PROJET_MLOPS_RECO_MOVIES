@@ -82,7 +82,6 @@ start-mlflow:
 	helm install mlf-ts bitnami/mlflow --namespace $(NAMESPACE2) --create-namespace -f kubernetes/ml_flow/values.yaml
 	kubectl apply -f kubernetes/secrets/mlflow-secrets.yaml
 
-
 # Déployer les services API (FastAPI et Streamlit)
 start-api:
 	kubectl create namespace $(NAMESPACE1) || true
@@ -115,7 +114,6 @@ clean-kube-api: check-kube
 # Nettoyer les espaces de noms spécifiques dans Kubernetes (Airflow)
 clean-kube-airflow: check-kube
 	kubectl delete namespace $(NAMESPACE2) || true
-
 
 # Nettoyer tous les espaces de noms spécifiés dans Kubernetes
 clean-kube-all: check-kube

@@ -2,9 +2,9 @@
 
 # Script de nettoyage Kubernetes
 
-echo "=============================="
+echo "========================================"
 echo " Nettoyage de l'environnement Kubernetes"
-echo "=============================="
+echo "========================================"
 
 # Fonction pour afficher le menu
 function display_menu() {
