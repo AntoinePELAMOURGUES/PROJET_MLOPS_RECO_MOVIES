@@ -39,7 +39,6 @@ CREATE TABLE IF NOT EXISTS ratings (
     movieid INTEGER REFERENCES movies(movieid),
     rating FLOAT NOT NULL,
     timestamp INTEGER,
-    bayesian_mean FLOAT NOT NULL
 );"""
 
 sql_create_links_table = """

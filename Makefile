@@ -1,39 +1,39 @@
-# Define namespaces for Kubernetes
+# Définir les namespaces pour Kubernetes
 NAMESPACE1 = api
 NAMESPACE2 = airflow
 
 
-# Project_directory
+# Répertoire du projet
 PROJECT_DIRECTORY = /home/antoine/PROJET_MLOPS_RECO_MOVIES
 
 
-# Declare phony targets that do not correspond to files
+# Déclarer les phony targets qui ne correspondent pas à des fichiers
 .PHONY: help start-all start-minikube install-helm start-airflow start-mlflow start-api delete-pv-airflow check-kube change-namespace-api change-namespace-airflow change-namespace-mlflow clean-kube-api clean-kube-airflow clean-kube-mlflow clean-kube-all install-initial-data preprocess-data start-prometheus
 
-# Help command to list all available targets
+# Commande d'aide pour lister toutes les targets disponibles
 help:
-	@echo "Usage: make [target]"
-	@echo "Targets:"
-	@echo "  start-all     - Start all services"
-	@echo "  start-minikube - Start Minikube with specified resources"
-	@echo "  install-helm   - Install Helm package manager"
-	@echo "  start-airflow  - Deploy Airflow using Helm"
-	@echo "  start-mlflow   - Deploy MLflow using Helm"
-	@echo "  start-api      - Deploy API services"
-	@echo "  delete-pv-airflow - Delete persistent volumes for Airflow"
-	@echo "  check-kube     - Verify kubectl is connected to a cluster"
-	@echo "  change-namespace-* - Change current namespace context for Kubernetes"
-	@echo "  clean-kube-*   - Clean up specific namespaces"
+	@echo "Utilisation: make [cible]"
+	@echo "Cibles:"
+	@echo "  start-all     - Démarrer tous les services"
+	@echo "  start-minikube - Démarrer Minikube avec les ressources spécifiées"
+	@echo "  install-helm   - Installer le gestionnaire de paquets Helm"
+	@echo "  start-airflow  - Déployer Airflow en utilisant Helm"
+	@echo "  start-mlflow   - Déployer MLflow en utilisant Helm"
+	@echo "  start-api      - Déployer les services API"
+	@echo "  delete-pv-airflow - Supprimer les volumes persistants pour Airflow"
+	@echo "  check-kube     - Vérifier que kubectl est connecté à un cluster"
+	@echo "  change-namespace-* - Changer le contexte d'espace de noms actuel pour Kubernetes"
+	@echo "  clean-kube-*   - Nettoyer les espaces de noms spécifiques"
 
 ##### MAKEFILE INITIAL DATA PIPELINE ######
 
-# Install Python dependencies - download anb preprocessing data
+# Installer les dépendances Python - télécharger et prétraiter les données
 install-initial-data:
 	sudo apt-get update
 	sudo apt-get install build-essential python3-dev
 	cd initial_data_pipeline && pip install -r requirements.txt
 	cd initial_data_pipeline && cp .env.example .env
-	echo "Please fill the .env file with your project_directory before continue"
+	echo "Veuillez remplir le fichier .env avec votre project_directory avant de continuer"
 
 preprocess-data:
 	cd initial_data_pipeline && python recover_data.py
@@ -42,26 +42,26 @@ preprocess-data:
 
 ###### MAKEFILE KUBERNETES ######
 
-# Start all services
+# Démarrer tous les services
 start-all: start-minikube start-airflow start-mlflow start-api
 
-# Start Minikube with specified resources
+# Démarrer Minikube avec les ressources spécifiées
 start-minikube:
-	minikube start --driver=docker --memory=31000 --cpus=4 --mount --mount-string="$(PROJECT_DIRECTORY):/host"
+	minikube start --driver=docker --memory=18000 --cpus=4 --mount --mount-string="$(PROJECT_DIRECTORY):/host"
 
-# Install Helm package manager
+# Installer le gestionnaire de paquets Helm
 install-helm:
 	curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
 	chmod +x get_helm.sh
 	./get_helm.sh
 
-# Deploy Airflow using Helm
+# Déployer Airflow en utilisant Helm
 start-airflow:
 	sudo apt-get update
 	helm repo add apache-airflow https://airflow.apache.org
 	helm upgrade --install airflow apache-airflow/airflow --namespace $(NAMESPACE2) --create-namespace -f kubernetes/airflow/my_airflow_values.yml
 
-	# Apply persistent volumes and claims for Airflow
+	# Appliquer les volumes persistants et les revendications (claims) pour Airflow
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-dags-folder-pv.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-logs-folder-pv.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-data-init-folder-pv.yml
@@ -75,7 +75,7 @@ start-airflow:
 	kubectl apply -f kubernetes/services/pgadmin-service.yml
 	kubectl apply -f kubernetes/secrets/airflow-secrets.yaml
 
-# Deploy MLflow using Helm
+# Déployer MLflow en utilisant Helm
 start-mlflow:
 	helm repo add bitnami https://charts.bitnami.com/bitnami
 	helm repo update
@@ -86,7 +86,7 @@ start-mlflow:
 	kubectl apply -f kubernetes/secrets/mlflow-secrets.yaml
 
 
-# Deploy API services (FastAPI and Streamlit)
+# Déployer les services API (FastAPI et Streamlit)
 start-api:
 	kubectl create namespace $(NAMESPACE1) || true
 	kubectl apply -f kubernetes/persistent-volumes/raw-storage-pv.yml
@@ -98,40 +98,40 @@ start-api:
 	kubectl apply -f kubernetes/deployments/streamlit-deployment.yml
 	kubectl apply -f kubernetes/services/api-service.yml
 
-# Delete persistent volumes for Airflow (if they exist)
+# Supprimer les volumes persistants pour Airflow (s'ils existent)
 delete-pv-airflow:
 	kubectl delete pv airflow-local-dags-folder-pv || true
 	kubectl delete pv airflow-local-logs-folder-pv || true
 
-# Check if kubectl is connected to a Kubernetes cluster
+# Vérifier si kubectl est connecté à un cluster Kubernetes
 check-kube:
-	@kubectl cluster-info > /dev/null 2>&1 || { echo "kubectl is not connected to a cluster"; exit 1; }
+	@kubectl cluster-info > /dev/null 2>&1 || { echo "kubectl n'est pas connecté à un cluster"; exit 1; }
 
-# Change the current namespace context for Kubernetes commands (API)
+# Changer le contexte d'espace de noms actuel pour les commandes Kubernetes (API)
 change-namespace-api:
 	kubectl config set-context --current --namespace=$(NAMESPACE1)
 
-# Change the current namespace context for Kubernetes commands (Airflow)
+# Changer le contexte d'espace de noms actuel pour les commandes Kubernetes (Airflow)
 change-namespace-airflow:
 	kubectl config set-context --current --namespace=$(NAMESPACE2)
 
-# Change the current namespace context for Kubernetes commands (MLFlow)
+# Changer le contexte d'espace de noms actuel pour les commandes Kubernetes (MLFlow)
 change-namespace-mlflow:
 	kubectl config set-context --current --namespace=$(NAMESPACE3)
 
-# Clean up specific namespaces in Kubernetes (API)
+# Nettoyer les espaces de noms spécifiques dans Kubernetes (API)
 clean-kube-api: check-kube
 	kubectl delete namespace $(NAMESPACE1) || true
 
-# Clean up specific namespaces in Kubernetes (Airflow)
+# Nettoyer les espaces de noms spécifiques dans Kubernetes (Airflow)
 clean-kube-airflow: check-kube
 	kubectl delete namespace $(NAMESPACE2) || true
 
-# Clean up specific namespaces in Kubernetes (MLFlow)
+# Nettoyer les espaces de noms spécifiques dans Kubernetes (MLFlow)
 clean-kube-mlflow: check-kube
 	kubectl delete namespace $(NAMESPACE3) || true
 
-# Clean up all specified namespaces in Kubernetes
+# Nettoyer tous les espaces de noms spécifiés dans Kubernetes
 clean-kube-all: check-kube
 	kubectl delete namespace $(NAMESPACE1) || true
 	kubectl delete namespace $(NAMESPACE2) || true

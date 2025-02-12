@@ -21,7 +21,6 @@ table_ratings = table(
     column("movieid"),
     column("rating"),
     column("timestamp"),
-    column("bayesian_mean"),
 )
 
 table_links = table(

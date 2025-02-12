@@ -38,57 +38,14 @@ def load_data(raw_data_relative_path):
         print(f"An error occurred while loading data: {e}")
 
 
-def bayesienne_mean(df, M, C):
-    """
-    Calcule la moyenne bayésienne des notes d'un film.
-
-    Args:
-        df (pd.Series): La série de notes du film.
-        M (float): La moyenne brute des notes des films.
-        C (float): La moyenne de la quantité de notes.
-
-    Returns:
-        float: La moyenne bayésienne calculée.
-    """
-    moy_ba = round((C * M + df.sum()) / (C + df.count()), 2)
-    return moy_ba
-
-
 def preprocessing_ratings(df_ratings) -> pd.DataFrame:
     """
-    Applique la moyenne bayésienne sur les évaluations des films.
-
-    Args:
-        df_ratings (pd.DataFrame): DataFrame contenant les évaluations.
-
-    Returns:
-        pd.DataFrame: DataFrame contenant les évaluations traitées avec la moyenne bayésienne.
+    Change les noms des colonnes et nettoie le fichier CSV des évaluations.
     """
     print("Début preprocessing ratings")
-    # Statistiques par film : quantité et moyenne des notes
-    movies_stats = df_ratings.groupby("movieId").agg({"rating": ["count", "mean"]})
-
-    # Renommer les colonnes
-    movies_stats.columns = ["count", "mean"]
-
-    # Calculer les moyennes nécessaires pour la moyenne bayésienne
-    C = movies_stats["count"].mean()  # Moyenne de la quantité de notes
-    M = movies_stats["mean"].mean()  # Moyenne brute des notes
-
-    # Calculer la moyenne bayésienne par film
-    movies_stats["bayesian_mean"] = movies_stats.apply(
-        lambda x: bayesienne_mean(
-            df_ratings[df_ratings["movieId"] == x.name]["rating"], M, C
-        ),
-        axis=1,
-    )
-
-    # Ajouter la colonne bayesian_mean au DataFrame original
-    df_ratings = df_ratings.merge(
-        movies_stats[["bayesian_mean"]], on="movieId", how="left"
-    )
-
-    print("Application de la moyenne bayésienne sur la colonne rating effectuée")
+    df_ratings["userId"] = df_ratings["userId"].astype(int)
+    # Filtrer les évaluations pour les utilisateurs ayant un ID inférieur à 20000 pour réduire la taille du dataset
+    df_ratings = df_ratings[df_ratings["userId"] < 20000]
     # Renommer les colonnes
     df_ratings = df_ratings.rename(columns={"userId": "userid", "movieId": "movieid"})
     print("Preprocessing ratings OK")
