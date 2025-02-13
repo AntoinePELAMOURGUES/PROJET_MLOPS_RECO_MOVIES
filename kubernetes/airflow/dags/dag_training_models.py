@@ -3,7 +3,7 @@ from airflow.utils.dates import days_ago
 from airflow.providers.cncf.kubernetes.operators.pod import KubernetesPodOperator
 from airflow.kubernetes.secret import Secret
 from kubernetes.client import models as k8s
-
+import datetime
 
 # Définition des secrets
 secret_password = Secret(
@@ -16,8 +16,9 @@ secret_mlflow = Secret(
 
 # Définition des arguments par défaut
 default_args = {
-    "owner": "airflow",
-    "start_date": days_ago(1),  # Commencer à s'exécuter à partir d'un jour en arrière
+    "owner": "antoine",
+    "start_date": datetime.datetime(2025, 2, 1),  # Date de début au 1er février 2025
+    "retries": 1,
 }
 
 # Création du DAG principal
@@ -26,7 +27,7 @@ with DAG(
     description="training models with MlFlow",
     tags=["antoine"],
     default_args=default_args,
-    schedule_interval="0 11 */3 * *",  # Exécution tout les 3 jours à 1:00
+    schedule_interval="0 0 1 * *",  # Exécution le 1er de chaque mois à minuit
     catchup=False,
 ) as dag:
 

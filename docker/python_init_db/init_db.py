@@ -38,7 +38,7 @@ CREATE TABLE IF NOT EXISTS ratings (
     userid INTEGER,
     movieid INTEGER REFERENCES movies(movieid),
     rating FLOAT NOT NULL,
-    timestamp INTEGER,
+    timestamp INTEGER
 );"""
 
 sql_create_links_table = """

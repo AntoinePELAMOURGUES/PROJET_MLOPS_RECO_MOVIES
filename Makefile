@@ -79,6 +79,15 @@ start-airflow:
 start-mlflow:
 	helm repo add bitnami https://charts.bitnami.com/bitnami
 	helm repo update
+	@echo "Veuillez entrer votre identifiant :"
+	@read USERNAME; \
+	echo "Veuillez entrer votre mot de passe :"; \
+	read -s PASSWORD; \
+	echo "Création du secret Kubernetes..."; \
+	kubectl create secret generic mlf-ts-mlflow-tracking --namespace airflow \
+		--from-literal=admin-user=$$USERNAME \
+		--from-literal=admin-password=$$PASSWORD; \
+	echo "Secret créé avec succès."
 	helm install mlf-ts bitnami/mlflow --namespace $(NAMESPACE2) --create-namespace -f kubernetes/ml_flow/values.yaml
 	kubectl apply -f kubernetes/secrets/mlflow-secrets.yaml
 

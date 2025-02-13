@@ -12,6 +12,11 @@ from sklearn.metrics.pairwise import cosine_similarity
 from sklearn.feature_extraction.text import TfidfVectorizer
 import joblib
 from surprise.model_selection import cross_validate
+import logging
+
+# Configuration du logger
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 def load_config():
@@ -28,10 +33,10 @@ def connect(config):
     """Connecte au serveur PostgreSQL et retourne la connexion."""
     try:
         conn = psycopg2.connect(**config)
-        print("Connected to the PostgreSQL server.")
+        logger.info("Connected to the PostgreSQL server.")
         return conn
     except (psycopg2.DatabaseError, Exception) as error:
-        print(f"Connection error: {error}")
+        logger.error(f"Connection error: {error}")
         return None
 
 
@@ -47,15 +52,15 @@ def fetch_table(table):
                 FROM {table};
             """
             df = pd.read_sql_query(query, conn)
-            print(f"Data {table} fetched successfully.")
+            logger.info(f"Data {table} fetched successfully.")
             return df
         except Exception as e:
-            print(f"Error fetching data: {e}")
+            logger.error(f"Error fetching data: {e}")
             return None
         finally:
             conn.close()  # Assurez-vous de fermer la connexion
     else:
-        print("Failed to connect to the database.")
+        logger.error("Failed to connect to the database.")
         return None
 
 
@@ -80,9 +85,8 @@ def train_TFIDF_model(df, data_directory):
         start_time = datetime.now()  # Démarrer la mesure du temps
 
         # Vérifier les colonnes et le contenu
-        print("Colonnes du DataFrame :", df.columns)
-        print("Aperçu du DataFrame :")
-        print(df.head())
+        logger.info("Colonnes du DataFrame : %s", df.columns)
+        logger.info("Aperçu du DataFrame :\n%s", df.head())
 
         # Créer une instance de TfidfVectorizer
         tfidf = TfidfVectorizer()
@@ -91,13 +95,16 @@ def train_TFIDF_model(df, data_directory):
         tfidf_matrix = tfidf.fit_transform(df["genres"])
 
         # Afficher la taille de la matrice
-        print(f"Dimensions de notre matrice TF-IDF : {tfidf_matrix.shape}")
+        logger.info(f"Dimensions de notre matrice TF-IDF : {tfidf_matrix.shape}")
         mlflow.log_param("tfidf_matrix_shape", tfidf_matrix.shape)
 
         # Calculer la similarité cosinus par morceaux
         sim_cosinus = cosine_similarity(tfidf_matrix, tfidf_matrix)
-        print(f"Dimensions de la matrice de similarité cosinus : {sim_cosinus.shape}")
+        logger.info(
+            f"Dimensions de la matrice de similarité cosinus : {sim_cosinus.shape}"
+        )
         mlflow.log_param("sim_cosinus_shape", sim_cosinus.shape)
+
         indices = pd.Series(range(0, len(df)), index=df["title"])
 
         # Enregistrer le modèle TF-IDF sur MLflow
@@ -110,7 +117,11 @@ def train_TFIDF_model(df, data_directory):
             pd.DataFrame(sim_cosinus).to_csv(header=False, index=False),
             artifact_path="sim_cosinus.csv",
         )
+
         mlflow.log_artifact(indices.to_csv(header=True), artifact_path="indices.csv")
+
+        logger.info("TF-IDF model trained and logged successfully.")
+
         return tfidf, sim_cosinus, indices
 
 
@@ -151,7 +162,7 @@ def train_model(
         # Entraîner le modèle
         model.fit(trainset)
 
-        print("Début de la cross-validation")
+        logger.info("Début de la cross-validation")
 
         # Effectuer la validation croisée sur le Trainset
         cv_results = cross_validate(
@@ -160,11 +171,14 @@ def train_model(
 
         # Afficher les résultats
         mean_rmse = cv_results["test_rmse"].mean()
-        print("Moyenne des RMSE :", mean_rmse)
+
+        logger.info("Moyenne des RMSE : %s", mean_rmse)
 
         # Log les métriques
         mlflow.log_metric("mean_rmse", mean_rmse)
+
         mlflow.log_metric("mean_fit_time", np.mean(cv_results["fit_time"]))
+
         mlflow.log_metric("mean_test_rmse", np.mean(cv_results["test_rmse"]))
 
         # Enregistrer le modèle Surprise SVD sur MLflow
@@ -180,6 +194,9 @@ def train_model(
                 "pandas==2.0.0",
             ],  # Add the library as dependency
         )
+
+        logger.info("Surprise SVD model trained and logged successfully.")
+
         return model, mean_rmse, reader
 
 
@@ -192,19 +209,16 @@ class SurpriseModelWrapper(mlflow.pyfunc.PythonModel):
         """
         Make predictions using the wrapped Surprise model.
         """
-        # Assuming model_input is a DataFrame with 'userid' and 'movieid' columns
         predictions = []
         for _, row in model_input.iterrows():
             userid = row["userid"]
             movieid = row["movieid"]
 
-            # Ensure user and item are known to the model. If not, return a default prediction.
             try:
                 prediction = self.model.predict(userid, movieid)
                 predictions.append(prediction.est)
             except Exception as e:
-                # Handle the case where the user or item is not in the training set
-                print(f"Error predicting for user {userid}, item {movieid}: {e}")
+                logger.error(f"Error predicting for user {userid}, item {movieid}: {e}")
                 predictions.append(
                     self.reader.rating_scale[0]
                 )  # Or another suitable default
@@ -213,13 +227,17 @@ class SurpriseModelWrapper(mlflow.pyfunc.PythonModel):
 
 
 if __name__ == "__main__":
-    print("########## TRAIN MODELS ##########")
+    logger.info("########## TRAIN MODELS ##########")
     data_directory = "/root/mount_file/models/"
     authenticate_mlflow()
+
     ratings = fetch_table("ratings")
     movies = fetch_table("movies")
+
     df = pd.merge(ratings, movies, on="movieid", how="left")
-    print("Entrainement du modèle TF-IDF")
+
+    logger.info("Entrainement du modèle TF-IDF")
     train_TFIDF_model(movies, data_directory)
-    print("Entrainement du modèle Surprise SVD")
+
+    logger.info("Entrainement du modèle Surprise SVD")
     train_model(df, data_directory)

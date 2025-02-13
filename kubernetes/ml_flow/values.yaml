@@ -13,3 +13,12 @@ metrics:
     serviceMonitor:
         enabled: true
 
+# values.yaml
+
+mlflow:
+    tracking:
+        admin:
+            username: "admin-user"  # Nom du secret
+            password: "admin-password"  # Nom du secret
+
+

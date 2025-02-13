@@ -76,10 +76,14 @@ Avant de lancer notre cluster local, rendez-vous dans le fichier Makefile afin d
 make start-minikube
 ```
 
-2. Lancement de kubernetes & airflow
+2. Lancement de kubernetes & airflow & mlflow
 
 ```bash
 make start-airflow
+```
+
+```bash
+make start-mlflow
 ```
 
 Une fois les déploiements, volumes, services lancés, entrez le code suivant afin de vous rendre sur l'interface d'Airflow (user et mdp = admin)
@@ -108,11 +112,11 @@ Rendez-vous dans "Add New Server", entrez dans Général le nom que vous souhait
 - **Username** : postgres
 - **Password** : postgres
 
-3. Lancement de Mlflow, Fastapi, Streamlit
+## 🧠 Entrainement de nos modèles de Machine Learning
 
-```bash
-make start-mlflow
-```
+Vous pouvez maintenant lancer le DAG training_models pour entraîner un modèle TF-IDF afin d'extraire des caractéristiques des genres de films, ainsi qu'un modèle SVD pour la réduction de dimensionnalité et l'analyse des données.
+
+3. Lancement de Fastapi, Streamlit
 
 ```bash
 make start-api
@@ -137,7 +141,6 @@ minikube service fastapi -n api
 ```bash
 make start-prometheus
 ```
-
 
 ## :skull: Arrêt de l'application
 

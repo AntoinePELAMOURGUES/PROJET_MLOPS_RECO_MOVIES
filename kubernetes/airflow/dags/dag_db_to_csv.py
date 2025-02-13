@@ -7,25 +7,23 @@ from kubernetes.client import models as k8s
 
 # Définition des secrets
 secret_password = Secret(
-    deploy_type="env",
-    deploy_target="POSTGRES_PASSWORD",
-    secret="sql-conn"
+    deploy_type="env", deploy_target="POSTGRES_PASSWORD", secret="sql-conn"
 )
 
 
 # Définition des arguments par défaut
 default_args = {
-    'owner': 'airflow',
-    'start_date': days_ago(1),  # Commencer à s'exécuter à partir d'un jour en arrière
+    "owner": "airflow",
+    "start_date": days_ago(1),  # Commencer à s'exécuter à partir d'un jour en arrière
 }
 
 # Création du DAG principal
 with DAG(
-    dag_id='db_to_csv',
-    description='création des fichiers csv à partir de la base de données',
-    tags=['antoine'],
+    dag_id="db_to_csv",
+    description="création des fichiers csv à partir de la base de données",
+    tags=["antoine"],
     default_args=default_args,
-    schedule_interval='0 11 */6 * *',  # Exécution tout les 3 jours à 6:00
+    schedule_interval="0 11 */6 * *",  # A 11h tous les 6 jours
     catchup=False,
 ) as dag:
 
@@ -36,9 +34,9 @@ with DAG(
         cmds=["python3", "db_to_csv.py"],
         namespace="airflow",
         env_vars={
-            'POSTGRES_HOST': "airflow-postgresql.airflow.svc.cluster.local",
-            'POSTGRES_DB': 'postgres',
-            'POSTGRES_USER': 'postgres',
+            "POSTGRES_HOST": "airflow-postgresql.airflow.svc.cluster.local",
+            "POSTGRES_DB": "postgres",
+            "POSTGRES_USER": "postgres",
         },
         secrets=[secret_password],  # Ajout des deux secrets
         volumes=[
@@ -55,8 +53,8 @@ with DAG(
             )
         ],
         is_delete_operator_pod=True,  # Supprimez le pod après exécution
-        get_logs=True,          # Récupérer les logs du pod
-        image_pull_policy='Always',  # Forcer le rechargement de l'image
+        get_logs=True,  # Récupérer les logs du pod
+        image_pull_policy="Always",  # Forcer le rechargement de l'image
     )
 
 dag_db_to_csv
