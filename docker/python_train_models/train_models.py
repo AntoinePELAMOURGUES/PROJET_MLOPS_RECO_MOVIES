@@ -13,6 +13,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 import joblib
 from surprise.model_selection import cross_validate
 import logging
+from sqlalchemy import create_engine
 
 # Configuration du logger
 logging.basicConfig(level=logging.INFO)
@@ -30,12 +31,14 @@ def load_config():
 
 
 def connect(config):
-    """Connecte au serveur PostgreSQL et retourne la connexion."""
+    """Connecte au serveur PostgreSQL et retourne l'engine."""
     try:
-        conn = psycopg2.connect(**config)
+        engine = create_engine(
+            f"postgresql+psycopg2://{config['user']}:{config['password']}@{config['host']}/{config['database']}"
+        )
         logger.info("Connected to the PostgreSQL server.")
-        return conn
-    except (psycopg2.DatabaseError, Exception) as error:
+        return engine
+    except Exception as error:
         logger.error(f"Connection error: {error}")
         return None
 
@@ -43,22 +46,19 @@ def connect(config):
 def fetch_table(table):
     """Récupère lignes d'une table et retourne un DataFrame."""
     config = load_config()
-    conn = connect(config)
+    engine = connect(config)
 
-    if conn is not None:
+    if engine is not None:
         try:
-            query = f"""
-                SELECT *
-                FROM {table};
-            """
-            df = pd.read_sql_query(query, conn)
+            query = f"SELECT * FROM {table};"
+            df = pd.read_sql_query(query, engine)
             logger.info(f"Data {table} fetched successfully.")
             return df
         except Exception as e:
             logger.error(f"Error fetching data: {e}")
             return None
         finally:
-            conn.close()  # Assurez-vous de fermer la connexion
+            engine.dispose()  # Dispose of the engine properly
     else:
         logger.error("Failed to connect to the database.")
         return None
@@ -72,6 +72,8 @@ def authenticate_mlflow():
     if mlflow_username and mlflow_password:
         os.environ["MLFLOW_TRACKING_USERNAME"] = mlflow_username
         os.environ["MLFLOW_TRACKING_PASSWORD"] = mlflow_password
+    else:
+        logger.error("Variables username et password MLflow absentes.")
 
 
 ########" MODELE DE RECOMMANDATION DE FILMS - SANS USERID ########"
@@ -119,6 +121,14 @@ def train_TFIDF_model(df, data_directory):
         )
 
         mlflow.log_artifact(indices.to_csv(header=True), artifact_path="indices.csv")
+
+        # Sauvegadrer modèles vers data_directory ("/root/mount_file/models/")
+        with open(f"{data_directory}/tfidf.pkl", "wb") as f:
+            pickle.dump(tfidf, f)
+        with open(f"{data_directory}/sim_cosinus.pkl", "wb") as f:
+            pickle.dump(sim_cosinus, f)
+        with open(f"{data_directory}/indices.pkl", "wb") as f:
+            pickle.dump(indices, f)
 
         logger.info("TF-IDF model trained and logged successfully.")
 
@@ -194,7 +204,11 @@ def train_model(
                 "pandas==2.0.0",
             ],  # Add the library as dependency
         )
-
+        # Sauvegadrer modèles et reader vers data_directory ("/root/mount_file/models/")
+        with open(f"{data_directory}/model_svd.pkl", "wb") as f:
+            pickle.dump(model, f)
+        with open(f"{data_directory}/reader.pkl", "wb") as f:
+            pickle.dump(reader, f)
         logger.info("Surprise SVD model trained and logged successfully.")
 
         return model, mean_rmse, reader

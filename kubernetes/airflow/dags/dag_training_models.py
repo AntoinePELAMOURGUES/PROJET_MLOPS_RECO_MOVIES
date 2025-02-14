@@ -6,12 +6,24 @@ from kubernetes.client import models as k8s
 import datetime
 
 # Définition des secrets
-secret_password = Secret(
+
+# Définition des secrets
+secret_password_airflow = Secret(
     deploy_type="env", deploy_target="POSTGRES_PASSWORD", secret="sql-conn"
 )
 
-secret_mlflow = Secret(
-    deploy_type="env", deploy_target="MLFLOW_TRACKING_PASSWORD", secret="mlflow-secrets"
+secret_username = Secret(
+    deploy_type="env",
+    deploy_target="MLFLOW_TRACKING_USERNAME",
+    secret="mlf-ts-mlflow-tracking",
+    key="admin-user",  # Clé dans le secret
+)
+
+secret_password_mlflow = Secret(
+    deploy_type="env",
+    deploy_target="MLFLOW_TRACKING_PASSWORD",
+    secret="mlf-ts-mlflow-tracking",
+    key="admin-password",  # Clé dans le secret
 )
 
 # Définition des arguments par défaut
@@ -41,10 +53,9 @@ with DAG(
             "POSTGRES_HOST": "airflow-postgresql.airflow.svc.cluster.local",
             "POSTGRES_DB": "postgres",
             "POSTGRES_USER": "postgres",
-            "MLFLOW_TRACKING_URI": "mlf-ts-mlflow-tracking.airflow.svc.cluster.local",
-            "MLFLOW_TRACKING_USERNAME": "user",
+            "MLFLOW_TRACKING_URI": "http://mlf-ts-mlflow-tracking.airflow.svc.cluster.local",
         },
-        secrets=[secret_password, secret_mlflow],  # Ajout des deux secrets
+        secrets=[secret_password_airflow, secret_username, secret_password_mlflow],
         volumes=[
             k8s.V1Volume(
                 name="airflow-local-data-folder",

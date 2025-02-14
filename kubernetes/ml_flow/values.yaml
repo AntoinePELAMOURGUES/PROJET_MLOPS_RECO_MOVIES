@@ -18,7 +18,7 @@ metrics:
 mlflow:
     tracking:
         admin:
-            username: "admin-user"  # Nom du secret
-            password: "admin-password"  # Nom du secret
+            username: "user"  # Nom du secret
+            password: "password"  # Nom du secret
 
 
