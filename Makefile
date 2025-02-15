@@ -1,8 +1,7 @@
 SHELL := /bin/bash
 
 # Définir les namespaces pour Kubernetes
-NAMESPACE1 = api
-NAMESPACE2 = airflow
+NAMESPACE = airflow
 
 
 # Répertoire du projet
@@ -59,9 +58,10 @@ install-helm:
 
 # Déployer Airflow en utilisant Helm
 start-airflow:
+	echo "########## INSTALLATION DE HELM AIRFLOW ##########"
 	sudo apt-get update
 	helm repo add apache-airflow https://airflow.apache.org
-	helm upgrade --install airflow apache-airflow/airflow --namespace $(NAMESPACE2) --create-namespace -f kubernetes/airflow/my_airflow_values.yml
+	helm upgrade --install airflow apache-airflow/airflow --namespace $(NAMESPACE) --create-namespace -f kubernetes/airflow/my_airflow_values.yml
 
 	# Appliquer les volumes persistants et les revendications (claims) pour Airflow
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-dags-folder-pv.yml
@@ -76,16 +76,17 @@ start-airflow:
 	kubectl apply -f kubernetes/deployments/pgadmin-deployment.yml
 	kubectl apply -f kubernetes/services/pgadmin-service.yml
 	kubectl apply -f kubernetes/secrets/airflow-secrets.yaml
-
-# Déployer MLflow en utilisant Helm
-start-mlflow:
+	echo "########## INSTALLATION DE HELM MLFLOW ##########"
 	helm repo add bitnami https://charts.bitnami.com/bitnami
 	helm repo update
-	helm install mlf-ts bitnami/mlflow --namespace $(NAMESPACE2) --create-namespace -f kubernetes/ml_flow/values.yaml
+	helm install mlf-ts bitnami/mlflow --namespace $(NAMESPACE) --create-namespace -f kubernetes/ml_flow/values.yaml
+	echo Username: $(kubectl get secret --namespace airflow mlf-ts-mlflow-tracking -o jsonpath="{ .data.admin-user }" | base64 -d)
+	echo Password: $(kubectl get secret --namespace airflow mlf-ts-mlflow-tracking -o jsonpath="{.data.admin-password }" | base64 -d)
+
 
 # Déployer les services API (FastAPI et Streamlit)
 start-api:
-	kubectl create namespace $(NAMESPACE1) || true
+	kubectl create namespace $(NAMESPACE) || true
 	kubectl apply -f kubernetes/secrets/api-secrets.yaml
 	kubectl apply -f kubernetes/deployments/fastapi-deployment.yml
 	kubectl apply -f kubernetes/deployments/streamlit-deployment.yml
@@ -100,30 +101,17 @@ delete-pv-airflow:
 check-kube:
 	@kubectl cluster-info > /dev/null 2>&1 || { echo "kubectl n'est pas connecté à un cluster"; exit 1; }
 
-# Changer le contexte d'espace de noms actuel pour les commandes Kubernetes (API)
-change-namespace-api:
-	kubectl config set-context --current --namespace=$(NAMESPACE1)
 
-# Changer le contexte d'espace de noms actuel pour les commandes Kubernetes (Airflow)
 change-namespace-airflow:
-	kubectl config set-context --current --namespace=$(NAMESPACE2)
-
-# Nettoyer les espaces de noms spécifiques dans Kubernetes (API)
-clean-kube-api: check-kube
-	kubectl delete namespace $(NAMESPACE1) || true
+	kubectl config set-context --current --namespace=$(NAMESPACE)
 
 # Nettoyer les espaces de noms spécifiques dans Kubernetes (Airflow)
 clean-kube-airflow: check-kube
-	kubectl delete namespace $(NAMESPACE2) || true
-
-# Nettoyer tous les espaces de noms spécifiés dans Kubernetes
-clean-kube-all: check-kube
-	kubectl delete namespace $(NAMESPACE1) || true
-	kubectl delete namespace $(NAMESPACE2) || true
+	kubectl delete namespace $(NAMESPACE) || true
 
 start-service:
 	minikube service airflow-webserver -n airflow
 	minikube service mlflow -n airflow
-	minikube service fastapi -n api
-	minikube service streamlit -n api
+	minikube service fastapi -n airflow
+	minikube service streamlit -n airflow
 	minikube service pgadmin -n airflow

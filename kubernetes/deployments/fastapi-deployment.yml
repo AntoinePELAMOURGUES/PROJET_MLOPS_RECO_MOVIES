@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: fastapi
-  namespace: api
+  namespace: airflow
 spec:
   replicas: 2
   selector:
@@ -31,22 +31,22 @@ spec:
             - name: POSTGRES_PASSWORD # Mot de passe pour l'utilisateur.
               valueFrom:
                 secretKeyRef:
-                  name: api-secrets
+                  name: sql-conn
                   key: POSTGRES_PASSWORD
             - name: SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: api-secrets
+                  name: sql-conn
                   key: SECRET_KEY
             - name: ALGORITHM
               valueFrom:
                 secretKeyRef:
-                  name: api-secrets
+                  name: sql-conn
                   key: ALGORITHM
             - name: TMDB_API_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: api-secrets
+                  name: sql-conn
                   key: TMDB_API_TOKEN
             - name: UVICORN_RELOAD
               value: "false"

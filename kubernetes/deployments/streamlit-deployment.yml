@@ -3,7 +3,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: streamlit
-  namespace: api
+  namespace: airflow
 spec:
   replicas: 1
   selector:

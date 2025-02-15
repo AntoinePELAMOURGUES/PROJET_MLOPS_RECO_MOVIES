@@ -15,6 +15,10 @@ from kubernetes import client, config
 import joblib
 from surprise import Dataset, Reader
 from surprise.prediction_algorithms.matrix_factorization import SVD
+import mlflow
+from sqlalchemy import create_engine
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 # Récupérer le token TMDB API depuis les variables d'environnement
 tmdb_token = os.getenv("TMDB_API_TOKEN")
@@ -52,33 +56,60 @@ router = APIRouter(
 )
 
 
-# Fonction pour charger un fichier CSV en DataFrame par morceaux
-def load_csv_to_df(file_path: str, chunk_size: int = 2000) -> pd.DataFrame:
-    """Charge un fichier CSV en DataFrame par morceaux pour gérer les grands fichiers.
+def load_config():
+    """Charge la configuration de la base de données à partir des variables d'environnement."""
+    return {
+        "host": os.getenv("POSTGRES_HOST"),
+        "database": os.getenv("POSTGRES_DB"),
+        "user": os.getenv("POSTGRES_USER"),
+        "password": os.getenv("POSTGRES_PASSWORD"),
+    }
 
-    Args:
-        file_path (str): Chemin vers le fichier CSV.
-        chunk_size (int, optional): Taille des morceaux pour la lecture. Defaults to 2000.
 
-    Returns:
-        pd.DataFrame: DataFrame contenant les données du fichier CSV. Retourne un DataFrame vide en cas d'erreur.
-    """
+def connect(config):
+    """Connecte au serveur PostgreSQL et retourne l'engine."""
     try:
-        # Initialiser une liste pour stocker les morceaux
-        chunks = []
+        engine = create_engine(
+            f"postgresql+psycopg2://{config['user']}:{config['password']}@{config['host']}/{config['database']}"
+        )
+        logger.info("Connected to the PostgreSQL server.")
+        return engine
+    except Exception as error:
+        logger.error(f"Connection error: {error}")
+        return None
 
-        # Lire le fichier CSV par morceaux
-        for chunk in pd.read_csv(file_path, chunksize=chunk_size):
-            chunks.append(chunk)
 
-        # Concaténer tous les morceaux en un seul DataFrame
-        df = pd.concat(chunks, ignore_index=True)
-        print(f"Chargement du fichier {file_path} réussi.")
-        return df
+def fetch_table(table):
+    """Récupère lignes d'une table et retourne un DataFrame."""
+    config = load_config()
+    engine = connect(config)
 
-    except FileNotFoundError:
-        print(f"Le fichier {file_path} est introuvable.")
-        return pd.DataFrame()  # Retourner un DataFrame vide en cas d'erreur
+    if engine is not None:
+        try:
+            query = f"SELECT * FROM {table};"
+            df = pd.read_sql_query(query, engine)
+            logger.info(f"Data {table} fetched successfully.")
+            return df
+        except Exception as e:
+            logger.error(f"Error fetching data: {e}")
+            return None
+        finally:
+            engine.dispose()
+    else:
+        logger.error("Failed to connect to the database.")
+        return None
+
+
+def authenticate_mlflow():
+    """Authentifie MLflow en utilisant les variables d'environnement."""
+    mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI"))
+    mlflow_username = os.getenv("MLFLOW_TRACKING_USERNAME")
+    mlflow_password = os.getenv("MLFLOW_TRACKING_PASSWORD")
+    if mlflow_username and mlflow_password:
+        os.environ["MLFLOW_TRACKING_USERNAME"] = mlflow_username
+        os.environ["MLFLOW_TRACKING_PASSWORD"] = mlflow_password
+    else:
+        logger.error("Variables username et password MLflow absentes.")
 
 
 # Fonction pour charger le modèle
@@ -147,7 +178,7 @@ def recommend_movies(
 
 
 # Fonction pour charger les artefacts du modèle TF-IDF
-def load_tfidf_model_artifacts(data_directory: str):
+def train_tfidf(df):
     """Charge les artefacts du modèle TF-IDF sauvegardés.
 
     Args:
@@ -156,10 +187,13 @@ def load_tfidf_model_artifacts(data_directory: str):
     Returns:
         tuple: Un tuple contenant le modèle TF-IDF, la matrice de similarité cosinus et les indices.
     """
-    tfidf = joblib.load(os.path.join(data_directory, "tfidf_model.joblib"))
-    sim_cosinus = joblib.load(os.path.join(data_directory, "sim_cosinus.joblib"))
-    indices = pd.read_pickle(os.path.join(data_directory, "indices.pkl"))
-    return tfidf, sim_cosinus, indices
+    # Créer un TfidfVectorizer et supprimer les mots vides
+    tfidf = TfidfVectorizer()
+    # Adapter et transformer les données en une matrice tfidf
+    matrice_tfidf = tfidf.fit_transform(movies["genres"])
+    sim_cosinus = cosine_similarity(matrice_tfidf, matrice_tfidf)
+    indices = pd.Series(range(0, len(movies)), index=movies["title"])
+    return matrice_tfidf, sim_cosinus, indices
 
 
 # Fonction pour obtenir les recommandations sans notion d'user_id
@@ -333,17 +367,16 @@ tmdb_request_duration_histogram = Histogram(
 print("############ DEBUT DES CHARGEMENTS ############")
 
 # Chargement des dataframes
-ratings = load_csv_to_df("/data/processed_ratings.csv")
-movies = load_csv_to_df("/data/processed_movies.csv")
+ratings = fetch_table("ratings")
+movies = fetch_table("movies")
 df = pd.merge(ratings, movies, on="movieid", how="left")
-links = load_csv_to_df("/data/processed_links.csv")
+links = fetch_table("links")
 
 # Charger les artefacts du modèle SVD
-model, reader = load_model("svd_model_v1.pkl")
-df_svd = Dataset.load_from_df(df[["userid", "movieid", "rating"]], reader=reader)
+model, reader = load_model("model_svd.pkl")
 
 # Charger les artefacts du modèle TF-IDF
-tfidf, sim_cosinus, indices = load_tfidf_model_artifacts("/models/")
+tfidf, sim_cosinus, indices = train_tfidf("movies")
 
 # Création d'un dataframe pour les liens entre les films et les ID IMDB
 movies_links_df = movies.merge(links, on="movieid", how="left")
@@ -499,7 +532,7 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
     try:
         # Forcer la conversion en int
         user_id = int(user_request.userId)
-        recommendations = recommend_movies(model, user_id, df_svd, top_n=15)
+        recommendations = recommend_movies(model, user_id, df, top_n=15)
         titles = [
             movie_titles[movie_id]
             for movie_id in recommendations
