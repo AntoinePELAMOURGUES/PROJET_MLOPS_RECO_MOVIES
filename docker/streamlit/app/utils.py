@@ -9,7 +9,7 @@ def display_movies_grid(movies_info):
 
     # Diviser les films entre les lignes et colonnes
     for idx, movie_info in movies_info.items():
-        idx = int(idx) - 1
+        idx = int(idx)
         row_idx = idx // 4  # Déterminer la ligne (0, 1 ou 2)
         col_idx = idx % 4  # Déterminer la colonne (0 à 3)
 

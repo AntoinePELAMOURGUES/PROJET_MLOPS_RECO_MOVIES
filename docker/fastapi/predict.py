@@ -104,7 +104,7 @@ def load_model(model_name: str, reader_name: str):
     Raises:
         FileNotFoundError: Si le modèle n'existe pas dans le répertoire spécifié.
     """
-    model_path = f"/models/{model_name}"
+    model_path = f"/root/mount_file/models/{model_name}"
     if not os.path.exists(model_path):
         raise FileNotFoundError(
             f"Le modèle {model_name} n'existe pas dans {model_path}."
@@ -113,7 +113,7 @@ def load_model(model_name: str, reader_name: str):
         model = pickle.load(file)
         print(f"Modèle chargé depuis {model_path}")
 
-    reader_path = f"/models/{reader_name}"
+    reader_path = f"/root/mount_file/models/{reader_name}"
     if not os.path.exists(reader_path):
         raise FileNotFoundError(
             f"Le reader {reader_name} n'existe pas dans {reader_path}."
@@ -588,3 +588,76 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
         ).inc()  # Enregistrer l'erreur
         logger.error(f"Erreur interne du serveur: {e}")
         raise HTTPException(status_code=500, detail="Erreur interne du serveur") from e
+
+
+# Route Api recommandation par rapport à un autre film
+@router.post("/similar_movies")
+async def predict(user_request: UserRequest) -> Dict[str, Any]:
+    """
+    Route API pour obtenir des recommandations de films basées sur l'ID utilisateur.
+    Args: user_request (UserRequest): Un objet contenant les détails de la requête de l'utilisateur, y compris l'ID utilisateur et le titre du film.
+    Returns:
+        Dict[str, Any]: Un dictionnaire contenant le choix de l'utilisateur et les recommandations de films.
+    """
+    logger.info(f"Requête reçue pour similar_movies: {user_request}")
+    # Démarrer le chronomètre pour mesurer la durée de la requête
+    start_time = time.time()
+    # Incrémenter le compteur de requêtes pour prometheus
+    nb_of_requests_counter.labels(
+        method="POST", endpoint="/predict/similar_movies"
+    ).inc()
+    movie_title = user_request.movie_title
+    find_movie_title = movie_finder(all_titles, movie_title)
+    try:
+        # Récupérer les ID des films recommandés en utilisant la fonction de similarité
+        recommendations = recommandations(
+            find_movie_title,
+            sim_cosinus,
+            indices,
+            title_to_movieid,
+            n_recommendations=24,
+        )
+        movies_id = [movies["movieid"].iloc[i] for i in recommendations]
+        imdb_list = [
+            imdb_dict[movie_id] for movie_id in movies_id if movie_id in imdb_dict
+        ]
+        start_tmdb_time = time.time()
+        results = api_tmdb_request(imdb_list)
+        tmdb_duration = time.time() - start_tmdb_time
+        tmdb_request_duration_histogram.labels(
+            endpoint="/predict/similar_movies"
+        ).observe(tmdb_duration)
+        recommendations_counter.labels(endpoint="/predict/similar_movies").inc(
+            len(results)
+        )
+        # Mesurer la taille de la réponse et l'enregistrer
+        response_size = len(json.dumps(results))
+        # Calculer la durée et enregistrer dans l'histogramme
+        duration = time.time() - start_time
+        # Enregistrement des métriques pour Prometheus
+        status_code_counter.labels(
+            status_code="200"
+        ).inc()  # Compter les réponses réussies
+        duration_of_requests_histogram.labels(
+            method="POST", endpoint="/predict/similar_movies", user_id="N/A"
+        ).observe(
+            duration
+        )  # Enregistrer la durée de la requête
+        response_size_histogram.labels(
+            method="POST", endpoint="/predict/similar_movies"
+        ).observe(
+            response_size
+        )  # Enregistrer la taille de la réponse
+        logger.info(f"Api response: {results}")
+        logger.info(f"Durée de la requête: {duration} secondes")
+        logger.info(f"Taille de la réponse: {response_size} octets")
+        return results
+    except Exception as e:
+        status_code_counter.labels(
+            status_code="500"
+        ).inc()  # Compter les réponses échouées
+        error_counter.labels(
+            error_type="Exception"
+        ).inc()  # Enregistrer l'erreur spécifique
+        logger.error(f"Erreur lors du traitement de la requête: {e}")
+        raise HTTPException(status_code=500, detail="Erreur interne du serveur")

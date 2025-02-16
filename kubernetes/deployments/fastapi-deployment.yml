@@ -54,7 +54,7 @@ spec:
             - containerPort: 8000
           volumeMounts:
             - name: airflow-local-data-folder
-              mountPath: /models
+              mountPath: /root/mount_file
       volumes:
         - name: airflow-local-data-folder
           persistentVolumeClaim:
