@@ -92,7 +92,7 @@ def fetch_table(table):
 
 
 # Fonction pour charger le modèle
-def load_model(model_name: str):
+def load_model(model_name: str, reader_name: str):
     """Charge le modèle à partir du répertoire monté.
 
     Args:
@@ -110,10 +110,17 @@ def load_model(model_name: str):
             f"Le modèle {model_name} n'existe pas dans {model_path}."
         )
     with open(model_path, "rb") as file:
-        model_data = pickle.load(file)
-        model = model_data["model"]
-        reader = model_data["reader"]
+        model = pickle.load(file)
         print(f"Modèle chargé depuis {model_path}")
+
+    reader_path = f"/models/{reader_name}"
+    if not os.path.exists(reader_path):
+        raise FileNotFoundError(
+            f"Le reader {reader_name} n'existe pas dans {reader_path}."
+        )
+    with open(reader_path, "rb") as file:
+        reader = pickle.load(file)
+        print(f"Reader chargé depuis {reader_path}")
     return model, reader
 
 
@@ -352,7 +359,7 @@ df = pd.merge(ratings, movies, on="movieid", how="left")
 links = fetch_table("links")
 
 # Charger les artefacts du modèle SVD
-model, reader = load_model("svd_model_v1.pkl")
+model, reader = load_model("model_svd.pkl", "reader.pkl")
 
 # Charger les artefacts du modèle TF-IDF
 tfidf, sim_cosinus, indices = train_tfidf("movies")
