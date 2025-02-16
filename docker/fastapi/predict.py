@@ -19,6 +19,7 @@ import mlflow
 from sqlalchemy import create_engine
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
+import mlflow.pyfunc
 
 # Récupérer le token TMDB API depuis les variables d'environnement
 tmdb_token = os.getenv("TMDB_API_TOKEN")
@@ -138,14 +139,32 @@ def load_model(model_name: str):
     return model, reader
 
 
-# Fonction pour recommander des films à un utilisateur identifié
-def recommend_movies(
-    model: SVD, user_id: int, df: pd.DataFrame, top_n: int = 15
-) -> list:
+def load_model_mlflow(model_name: str):
+    """Charge le modèle depuis MLflow.
+
+    Args:
+        model_name (str): Le nom enregistré du modèle MLflow.
+
+    Returns:
+        mlflow.pyfunc.PythonModel: Le modèle MLflow chargé.
+    """
+    try:
+        model_uri = f"models:/{model_name}/latest"  # Charger la dernière version
+        loaded_model = mlflow.pyfunc.load_model(model_uri)
+        logger.info(f"Modèle '{model_name}' chargé avec succès depuis MLflow.")
+        return loaded_model
+    except Exception as e:
+        logger.error(
+            f"Erreur lors du chargement du modèle '{model_name}' depuis MLflow : {e}"
+        )
+        return None
+
+
+def recommend_movies(model, user_id: int, df: pd.DataFrame, top_n: int = 15) -> list:
     """Recommande des films à un utilisateur en fonction de ses évaluations prédites.
 
     Args:
-        model (SVD): Le modèle SVD entraîné.
+        model (mlflow.pyfunc.PythonModel): Le modèle SVD MLflow chargé.
         user_id (int): L'ID de l'utilisateur pour lequel on veut des recommandations.
         df (pd.DataFrame): DataFrame contenant les données des films et les évaluations.
         top_n (int, optional): Le nombre de films à recommander. Defaults to 15.
@@ -165,9 +184,23 @@ def recommend_movies(
     ]
 
     # Faire des prédictions pour chaque film non évalué
+    # **Important :** Préparer les données d'entrée pour la fonction `predict` de MLflow.
     predictions = []
     for movie_id in movies_to_predict:
-        predictions.append((movie_id, model.predict(user_id, movie_id).est))
+        input_data = pd.DataFrame({"userid": [user_id], "movieid": [movie_id]})
+        try:
+            prediction = model.predict(context=None, model_input=input_data)[
+                0
+            ]  # Récupérer la prédiction unique
+            predictions.append((movie_id, prediction))
+        except Exception as e:
+            logger.error(
+                f"Erreur de prédiction pour user {user_id}, item {movie_id}: {e}"
+            )
+            # Gérer l'erreur, par exemple, en attribuant une valeur par défaut.
+            predictions.append(
+                (movie_id, 0.0)
+            )  # Ou une autre valeur par défaut appropriée
 
     # Trier les prédictions par ordre décroissant d'évaluation prédite
     predictions.sort(key=lambda x: x[1], reverse=True)
@@ -372,8 +405,11 @@ movies = fetch_table("movies")
 df = pd.merge(ratings, movies, on="movieid", how="left")
 links = fetch_table("links")
 
-# Charger les artefacts du modèle SVD
-model, reader = load_model("model_svd.pkl")
+# Charger le modèle depuis MLflow
+model_name = (
+    "SurpriseSVDModel"  # Remplacez par le nom enregistré de votre modèle MLflow
+)
+loaded_model = load_model_mlflow(model_name)
 
 # Charger les artefacts du modèle TF-IDF
 tfidf, sim_cosinus, indices = train_tfidf("movies")
@@ -532,7 +568,7 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
     try:
         # Forcer la conversion en int
         user_id = int(user_request.userId)
-        recommendations = recommend_movies(model, user_id, df, top_n=15)
+        recommendations = recommend_movies(loaded_model, user_id, df)
         titles = [
             movie_titles[movie_id]
             for movie_id in recommendations

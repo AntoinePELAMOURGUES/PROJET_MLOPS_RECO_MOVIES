@@ -86,8 +86,6 @@ start-airflow:
 
 # Déployer les services API (FastAPI et Streamlit)
 start-api:
-	kubectl create namespace $(NAMESPACE) || true
-	kubectl apply -f kubernetes/secrets/api-secrets.yaml
 	kubectl apply -f kubernetes/deployments/fastapi-deployment.yml
 	kubectl apply -f kubernetes/deployments/streamlit-deployment.yml
 	kubectl apply -f kubernetes/services/api-service.yml

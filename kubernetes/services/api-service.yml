@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: fastapi
-  namespace: api
+  namespace: airflow
 spec:
   selector:
     app: fastapi
@@ -16,7 +16,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: streamlit
-  namespace: api
+  namespace: airflow
 spec:
   selector:
     app: streamlit
@@ -29,14 +29,14 @@ apiVersion: monitoring.coreos.com/v1
 kind: ServiceMonitor
 metadata:
   name: fastapi-monitor
-  namespace: prom
+  namespace: airflow
 spec:
   selector:
     matchLabels:
       app: fastapi
   namespaceSelector:
     matchNames:
-      - api  # Le namespace où se trouve notre service FastAPI
+      - airflow  # Le namespace où se trouve notre service FastAPI
   endpoints:
     - port: "80"
       interval: 30s  # Intervalle de scraping

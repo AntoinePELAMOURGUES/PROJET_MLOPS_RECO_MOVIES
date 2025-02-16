@@ -28,6 +28,15 @@ spec:
               value: "postgres"
             - name: POSTGRES_USER # Nom d'utilisateur pour PostgreSQL.
               value: "postgres"
+            - name: MLFLOW_TRACKING_URI
+              value: "http://mlflow.airflow.svc.cluster.local:5000"
+            - name: MLFLOW_TRACKING_USERNAME
+              value: "user"
+            - name: MLFLOW_TRACKING_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mlf-ts-mlflow-tracking
+                  key: "admin-password"
             - name: POSTGRES_PASSWORD # Mot de passe pour l'utilisateur.
               valueFrom:
                 secretKeyRef:
@@ -52,15 +61,15 @@ spec:
               value: "false"
           ports:
             - containerPort: 8000
-          volumeMounts:
-            - name: models-storage-pvc
-              mountPath: /models
-            - name: raw-storage-pvc
-              mountPath: /data
-      volumes:
-        - name: models-storage-pvc
-          persistentVolumeClaim:
-            claimName: models-storage-pvc
-        - name: raw-storage-pvc
-          persistentVolumeClaim:
-            claimName: raw-storage-pvc
+          # volumeMounts:
+            # - name: models-storage-pvc
+            #   mountPath: /models
+            # - name: raw-storage-pvc
+            #   mountPath: /data
+      # volumes:
+        # - name: models-storage-pvc
+        #   persistentVolumeClaim:
+          #   claimName: models-storage-pvc
+        # - name: raw-storage-pvc
+          # persistentVolumeClaim:
+            # claimName: raw-storage-pvc
