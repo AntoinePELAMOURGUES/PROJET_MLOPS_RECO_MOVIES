@@ -1,6 +1,7 @@
 SHELL := /bin/bash
 
 # Définir les namespaces pour Kubernetes
+
 NAMESPACE = airflow
 
 
@@ -58,7 +59,6 @@ install-helm:
 
 # Déployer Airflow en utilisant Helm
 start-airflow:
-	echo "########## INSTALLATION DE HELM AIRFLOW ##########"
 	sudo apt-get update
 	helm repo add apache-airflow https://airflow.apache.org
 	helm upgrade --install airflow apache-airflow/airflow --namespace $(NAMESPACE) --create-namespace -f kubernetes/airflow/my_airflow_values.yml
@@ -76,12 +76,6 @@ start-airflow:
 	kubectl apply -f kubernetes/deployments/pgadmin-deployment.yml
 	kubectl apply -f kubernetes/services/pgadmin-service.yml
 	kubectl apply -f kubernetes/secrets/airflow-secrets.yaml
-	echo "########## INSTALLATION DE HELM MLFLOW ##########"
-	helm repo add bitnami https://charts.bitnami.com/bitnami
-	helm repo update
-	helm install mlf-ts bitnami/mlflow --namespace $(NAMESPACE) --create-namespace -f kubernetes/ml_flow/values.yaml
-	echo Username: $(kubectl get secret --namespace airflow mlf-ts-mlflow-tracking -o jsonpath="{ .data.admin-user }" | base64 -d)
-	echo Password: $(kubectl get secret --namespace airflow mlf-ts-mlflow-tracking -o jsonpath="{.data.admin-password }" | base64 -d)
 
 
 # Déployer les services API (FastAPI et Streamlit)
@@ -99,17 +93,12 @@ delete-pv-airflow:
 check-kube:
 	@kubectl cluster-info > /dev/null 2>&1 || { echo "kubectl n'est pas connecté à un cluster"; exit 1; }
 
-
+# Changer le contexte d'espace de noms actuel pour les commandes Kubernetes (Airflow)
 change-namespace-airflow:
 	kubectl config set-context --current --namespace=$(NAMESPACE)
+
 
 # Nettoyer les espaces de noms spécifiques dans Kubernetes (Airflow)
 clean-kube-airflow: check-kube
 	kubectl delete namespace $(NAMESPACE) || true
 
-start-service:
-	minikube service airflow-webserver -n airflow
-	minikube service mlflow -n airflow
-	minikube service fastapi -n airflow
-	minikube service streamlit -n airflow
-	minikube service pgadmin -n airflow

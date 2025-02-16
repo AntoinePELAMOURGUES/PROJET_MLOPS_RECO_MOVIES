@@ -16,14 +16,14 @@ secret_username = Secret(
     deploy_type="env",
     deploy_target="MLFLOW_TRACKING_USERNAME",
     secret="mlf-ts-mlflow-tracking",
-    key="admin-user",  # Clé pour le nom d'utilisateur
+    key="admin-user",  # Clé dans le secret
 )
 
 secret_password_mlflow = Secret(
     deploy_type="env",
     deploy_target="MLFLOW_TRACKING_PASSWORD",
     secret="mlf-ts-mlflow-tracking",
-    key="admin-password",  # Clé pour le mot de passe
+    key="admin-password",  # Clé dans le secret
 )
 
 # Définition des arguments par défaut
@@ -69,7 +69,7 @@ with DAG(
                 name="airflow-local-data-folder", mount_path="/root/mount_file"
             )
         ],
-        # is_delete_operator_pod=True,  # Supprimez le pod après exécution
+        is_delete_operator_pod=True,  # Supprimez le pod après exécution
         get_logs=True,  # Récupérer les logs du pod
         image_pull_policy="Always",  # Forcer le rechargement de l'image
     )

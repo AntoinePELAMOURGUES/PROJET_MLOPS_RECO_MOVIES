@@ -18,5 +18,3 @@ scikit-learn
 sqlalchemy
 pytest
 httpx
-mlflow
-scikit-learn==1.3.2

@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: fastapi
-  namespace: airflow
+  namespace: api
 spec:
   replicas: 2
   selector:
@@ -40,36 +40,31 @@ spec:
             - name: POSTGRES_PASSWORD # Mot de passe pour l'utilisateur.
               valueFrom:
                 secretKeyRef:
-                  name: sql-conn
+                  name: api-secrets
                   key: POSTGRES_PASSWORD
             - name: SECRET_KEY
               valueFrom:
                 secretKeyRef:
-                  name: sql-conn
+                  name: api-secrets
                   key: SECRET_KEY
             - name: ALGORITHM
               valueFrom:
                 secretKeyRef:
-                  name: sql-conn
+                  name: api-secrets
                   key: ALGORITHM
             - name: TMDB_API_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: sql-conn
+                  name: api-secrets
                   key: TMDB_API_TOKEN
             - name: UVICORN_RELOAD
               value: "false"
           ports:
             - containerPort: 8000
-          # volumeMounts:
-            # - name: models-storage-pvc
-            #   mountPath: /models
-            # - name: raw-storage-pvc
-            #   mountPath: /data
-      # volumes:
-        # - name: models-storage-pvc
-        #   persistentVolumeClaim:
-          #   claimName: models-storage-pvc
-        # - name: raw-storage-pvc
-          # persistentVolumeClaim:
-            # claimName: raw-storage-pvc
+          volumeMounts:
+            - name: airflow-local-data-folder
+              mountPath: /models
+      volumes:
+        - name: airflow-local-data-folder
+          persistentVolumeClaim:
+            claimName: airflow-local-data-folder

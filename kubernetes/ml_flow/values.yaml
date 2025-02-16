@@ -1,3 +1,7 @@
+auth:
+    enabled: true
+    username: user
+    password: "reco_movies"
 
 
 metrics:
@@ -9,6 +13,12 @@ metrics:
     serviceMonitor:
         enabled: true
 
+# values.yaml
 
+mlflow:
+    tracking:
+        admin:
+            username: "user"  # Nom du secret
+            password: "password"  # Nom du secret
 
 

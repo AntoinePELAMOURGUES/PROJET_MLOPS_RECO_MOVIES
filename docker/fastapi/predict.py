@@ -15,11 +15,9 @@ from kubernetes import client, config
 import joblib
 from surprise import Dataset, Reader
 from surprise.prediction_algorithms.matrix_factorization import SVD
-import mlflow
 from sqlalchemy import create_engine
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-import mlflow.pyfunc
 
 # Récupérer le token TMDB API depuis les variables d'environnement
 tmdb_token = os.getenv("TMDB_API_TOKEN")
@@ -33,22 +31,14 @@ config.load_incluster_config()
 
 # Définir les volumes pour le stockage des modèles et des données brutes
 volume1 = client.V1Volume(
-    name="model-storage",
+    name="airflow-local-data-folder",
     persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(
-        claim_name="model-storage-pvc"
-    ),
-)
-
-volume2 = client.V1Volume(
-    name="raw-storage",
-    persistent_volume_claim=client.V1PersistentVolumeClaimVolumeSource(
-        claim_name="raw-storage-pvc"
+        claim_name="airflow-local-data-folder"
     ),
 )
 
 # Définir les points de montage des volumes
 volume1_mount = client.V1VolumeMount(name="model-storage", mount_path="/models")
-volume2_mount = client.V1VolumeMount(name="raw-storage", mount_path="/data")
 
 # Routeur pour gérer les routes de prédiction
 router = APIRouter(
@@ -101,18 +91,6 @@ def fetch_table(table):
         return None
 
 
-def authenticate_mlflow():
-    """Authentifie MLflow en utilisant les variables d'environnement."""
-    mlflow.set_tracking_uri(os.getenv("MLFLOW_TRACKING_URI"))
-    mlflow_username = os.getenv("MLFLOW_TRACKING_USERNAME")
-    mlflow_password = os.getenv("MLFLOW_TRACKING_PASSWORD")
-    if mlflow_username and mlflow_password:
-        os.environ["MLFLOW_TRACKING_USERNAME"] = mlflow_username
-        os.environ["MLFLOW_TRACKING_PASSWORD"] = mlflow_password
-    else:
-        logger.error("Variables username et password MLflow absentes.")
-
-
 # Fonction pour charger le modèle
 def load_model(model_name: str):
     """Charge le modèle à partir du répertoire monté.
@@ -139,32 +117,14 @@ def load_model(model_name: str):
     return model, reader
 
 
-def load_model_mlflow(model_name: str):
-    """Charge le modèle depuis MLflow.
-
-    Args:
-        model_name (str): Le nom enregistré du modèle MLflow.
-
-    Returns:
-        mlflow.pyfunc.PythonModel: Le modèle MLflow chargé.
-    """
-    try:
-        model_uri = f"models:/{model_name}/latest"  # Charger la dernière version
-        loaded_model = mlflow.pyfunc.load_model(model_uri)
-        logger.info(f"Modèle '{model_name}' chargé avec succès depuis MLflow.")
-        return loaded_model
-    except Exception as e:
-        logger.error(
-            f"Erreur lors du chargement du modèle '{model_name}' depuis MLflow : {e}"
-        )
-        return None
-
-
-def recommend_movies(model, user_id: int, df: pd.DataFrame, top_n: int = 15) -> list:
+# Fonction pour recommander des films à un utilisateur identifié
+def recommend_movies(
+    model: SVD, user_id: int, df: pd.DataFrame, top_n: int = 15
+) -> list:
     """Recommande des films à un utilisateur en fonction de ses évaluations prédites.
 
     Args:
-        model (mlflow.pyfunc.PythonModel): Le modèle SVD MLflow chargé.
+        model (SVD): Le modèle SVD entraîné.
         user_id (int): L'ID de l'utilisateur pour lequel on veut des recommandations.
         df (pd.DataFrame): DataFrame contenant les données des films et les évaluations.
         top_n (int, optional): Le nombre de films à recommander. Defaults to 15.
@@ -184,23 +144,9 @@ def recommend_movies(model, user_id: int, df: pd.DataFrame, top_n: int = 15) -> 
     ]
 
     # Faire des prédictions pour chaque film non évalué
-    # **Important :** Préparer les données d'entrée pour la fonction `predict` de MLflow.
     predictions = []
     for movie_id in movies_to_predict:
-        input_data = pd.DataFrame({"userid": [user_id], "movieid": [movie_id]})
-        try:
-            prediction = model.predict(context=None, model_input=input_data)[
-                0
-            ]  # Récupérer la prédiction unique
-            predictions.append((movie_id, prediction))
-        except Exception as e:
-            logger.error(
-                f"Erreur de prédiction pour user {user_id}, item {movie_id}: {e}"
-            )
-            # Gérer l'erreur, par exemple, en attribuant une valeur par défaut.
-            predictions.append(
-                (movie_id, 0.0)
-            )  # Ou une autre valeur par défaut appropriée
+        predictions.append((movie_id, model.predict(user_id, movie_id).est))
 
     # Trier les prédictions par ordre décroissant d'évaluation prédite
     predictions.sort(key=lambda x: x[1], reverse=True)
@@ -405,11 +351,8 @@ movies = fetch_table("movies")
 df = pd.merge(ratings, movies, on="movieid", how="left")
 links = fetch_table("links")
 
-# Charger le modèle depuis MLflow
-model_name = (
-    "SurpriseSVDModel"  # Remplacez par le nom enregistré de votre modèle MLflow
-)
-loaded_model = load_model_mlflow(model_name)
+# Charger les artefacts du modèle SVD
+model, reader = load_model("svd_model_v1.pkl")
 
 # Charger les artefacts du modèle TF-IDF
 tfidf, sim_cosinus, indices = train_tfidf("movies")
@@ -568,7 +511,7 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
     try:
         # Forcer la conversion en int
         user_id = int(user_request.userId)
-        recommendations = recommend_movies(loaded_model, user_id, df)
+        recommendations = recommend_movies(model, user_id, df, top_n=15)
         titles = [
             movie_titles[movie_id]
             for movie_id in recommendations
