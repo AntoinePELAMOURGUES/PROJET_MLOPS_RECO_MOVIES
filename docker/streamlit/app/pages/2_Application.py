@@ -35,9 +35,9 @@ try:
     )
     if response.status_code == 200:
         result = response.json()
-        len_result = int(result["len"])
-        result = result["data"]
-        if result:
+        len_result = result["len"]
+        imdb_dict = result["data"]
+        if imdb_dict:
             st.write(f"Voici vos {len_result} films les mieux notés :")
             display_movies_grid(result)
         else:
@@ -95,8 +95,18 @@ if st.button("Rechercher"):
     )
 
     if response.status_code == 200:
-        result = response.json()
-        if result:  # Vérifier que le résultat n'est pas vide
+        api_result = response.json()
+        movie_find = api_result["movie_find"]
+        if movie_find:
+            st.write(
+                f"Voici le film que nous avons trouvé au sein de notre base de donnée : {movie_find}"
+            )
+            single_movie_info = api_result["single_movie_info"]
+            if single_movie_info:
+                display_movies_grid(single_movie_info)
+                st.markdown("---")
+        predict_movies_infos = api_result["predict_movies"]
+        if predict_movies_infos:
             display_movies_grid(result)
         else:
             st.warning("Aucun film trouvé.")

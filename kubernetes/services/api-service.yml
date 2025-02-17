@@ -23,21 +23,7 @@ spec:
   ports:
     - protocol: TCP
       port: 8501 # Port par défaut pour Streamlit
+      targetPort: 8501 # Assurez-vous que c'est le bon port cible
+      nodePort: 30007 # Port NodePort spécifique (facultatif)
+  type: NodePort
 
----
-apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
-metadata:
-  name: fastapi-monitor
-  namespace: airflow
-spec:
-  selector:
-    matchLabels:
-      app: fastapi
-  namespaceSelector:
-    matchNames:
-      - airflow  # Le namespace où se trouve notre service FastAPI
-  endpoints:
-    - port: "80"
-      interval: 30s  # Intervalle de scraping
-      scrapeTimeout: 10s  # Timeout pour le scraping

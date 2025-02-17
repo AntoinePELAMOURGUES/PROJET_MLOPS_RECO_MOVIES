@@ -10,7 +10,7 @@ PROJECT_DIRECTORY = /home/antoine/PROJET_MLOPS_RECO_MOVIES
 
 
 # Déclarer les phony targets qui ne correspondent pas à des fichiers
-.PHONY: help start-all start-minikube install-helm start-airflow start-mlflow start-api delete-pv-airflow check-kube change-namespace-api change-namespace-airflow change-namespace-mlflow clean-kube-api clean-kube-airflow clean-kube-mlflow clean-kube-all install-initial-data preprocess-data start-prometheus
+.PHONY: help start-all start-minikube install-helm start-airflow start-mlflow start-api delete-pv-airflow check-kube change-namespace-api change-namespace-airflow change-namespace-mlflow clean-kube-api clean-kube-airflow clean-kube-mlflow clean-kube-all install-initial-data preprocess-data start-monitoring
 
 # Commande d'aide pour lister toutes les targets disponibles
 help:
@@ -22,6 +22,7 @@ help:
 	@echo "  start-airflow  - Déployer Airflow en utilisant Helm"
 	@echo "  start-mlflow   - Déployer MLflow en utilisant Helm"
 	@echo "  start-api      - Déployer les services API"
+	@echo "  start-monitoring - Déployer les services de monitoring"
 	@echo "  delete-pv-airflow - Supprimer les volumes persistants pour Airflow"
 	@echo "  check-kube     - Vérifier que kubectl est connecté à un cluster"
 	@echo "  change-namespace-* - Changer le contexte d'espace de noms actuel pour Kubernetes"
@@ -83,6 +84,11 @@ start-api:
 	kubectl apply -f kubernetes/deployments/fastapi-deployment.yml
 	kubectl apply -f kubernetes/deployments/streamlit-deployment.yml
 	kubectl apply -f kubernetes/services/api-service.yml
+
+start-monitoring:
+	helm install prometheus prometheus-community/kube-prometheus-stack --namespace monitoring --create-namespace --set grafana.service.type=NodePort --set promotheus.service.type=NodePort
+
+
 
 # Supprimer les volumes persistants pour Airflow (s'ils existent)
 delete-pv-airflow:

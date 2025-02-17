@@ -290,6 +290,42 @@ def api_tmdb_request(movie_ids: list) -> Dict[str, Any]:
     return results
 
 
+# Effectuer une requête à l'API TMDB
+def api_tmdb_request_unique(movie_id) -> Dict[str, Any]:
+    """Effectue des requêtes à l'API TMDB pour récupérer les informations des films.
+
+    Args:
+        movie_ids (list): Une liste d'IDs de films (IMDB IDs).
+
+    Returns:
+        Dict[str, Any]: Un dictionnaire contenant les informations des films récupérées depuis TMDB.
+    """
+    results = {}
+
+    formatted_id = format_movie_id(movie_id)
+    url = f"https://api.themoviedb.org/3/find/tt{formatted_id}?external_source=imdb_id"
+
+    headers = {
+        "accept": "application/json",
+        "Authorization": f"Bearer {tmdb_token}",
+    }
+
+    response = requests.get(url, headers=headers)
+
+    if response.status_code == 200:
+        data = response.json()
+        if data["movie_results"]:
+            index = len(results)
+            movie_info = data["movie_results"][0]
+            results[str(index)] = {
+                "title": movie_info["title"],
+                "vote_average": movie_info["vote_average"],
+                "poster_path": f"http://image.tmdb.org/t/p/w185{movie_info['poster_path']}",
+            }
+
+    return results
+
+
 # METRICS PROMETHEUS
 collector = CollectorRegistry()
 
@@ -377,7 +413,7 @@ title_to_movieid = dict(zip(movies["title"], movies["movieid"]))
 imdb_dict = dict(zip(movies_links_df["movieid"], movies_links_df["imdbid"]))
 
 # Créer une liste de tous les titres de films
-all_titles = movies["title"].tolist()
+all_titles = movies["title"].unique().tolist()
 
 print("############ FIN DES CHARGEMENTS ############")
 
@@ -610,6 +646,11 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
     movie_title = user_request.movie_title
     find_movie_title = movie_finder(all_titles, movie_title)
     try:
+        # recuperation des données du film cherché
+        movie_find_id = title_to_movieid[find_movie_title]
+        imdb_movie_find = imdb_dict[movie_find_id]
+        imdb_format = format_movie_id(imdb_movie_find)
+        single_movie_info = api_tmdb_request_unique(imdb_format)
         # Récupérer les ID des films recommandés en utilisant la fonction de similarité
         recommendations = recommandations(
             find_movie_title,
@@ -618,12 +659,16 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
             title_to_movieid,
             num_recommandations=24,
         )
-        movies_id = [movies["movieid"].iloc[i] for i in recommendations]
         imdb_list = [
-            imdb_dict[movie_id] for movie_id in movies_id if movie_id in imdb_dict
+            imdb_dict[movie_id] for movie_id in recommendations if movie_id in imdb_dict
         ]
         start_tmdb_time = time.time()
-        results = api_tmdb_request(imdb_list)
+        predict_movies_infos = api_tmdb_request(imdb_list)
+        results = {
+            "movie_find": find_movie_title,
+            "single_movie_info": single_movie_info,
+            "predict_movies": predict_movies_infos,
+        }
         tmdb_duration = time.time() - start_tmdb_time
         tmdb_request_duration_histogram.labels(
             endpoint="/predict/similar_movies"
