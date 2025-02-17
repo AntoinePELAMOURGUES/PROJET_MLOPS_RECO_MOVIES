@@ -394,7 +394,7 @@ class UserRequest(BaseModel):
 
 @router.post("/best_user_movies")
 async def predict(user_request: UserRequest) -> Dict[str, Any]:
-    """Route API pour récupérer les 3 films les mieux notés de l'utilisateur.
+    """Route API pour récupérer les 8 films les mieux notés de l'utilisateur.
 
     Args:
         user_request (UserRequest): Un objet contenant les détails de la requête de l'utilisateur,y compris l'ID utilisateur et le titre du film.
@@ -420,7 +420,7 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
         user_id = int(userId)
         df_user = ratings[ratings["userid"] == user_id]
         df_user = df_user.sort_values(by="rating", ascending=False)
-        best_movies = df_user.head(3)
+        best_movies = df_user.head(8)
         imdb_list = [
             imdb_dict[movie_id]
             for movie_id in best_movies["movieid"]
@@ -430,7 +430,8 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
         logger.info(f"Meilleurs films pour l'utilisateur {userId}: {imdb_list}")
 
         start_tmdb_time = time.time()
-        results = api_tmdb_request(imdb_list)
+        api_tmdb = api_tmdb_request(imdb_list)
+        results = {"len": len(api_tmdb), "data": api_tmdb}
         tmdb_duration = time.time() - start_tmdb_time
 
         tmdb_request_duration_histogram.labels(
@@ -615,7 +616,7 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
             sim_cosinus,
             indices,
             title_to_movieid,
-            n_recommendations=24,
+            num_recommandations=24,
         )
         movies_id = [movies["movieid"].iloc[i] for i in recommendations]
         imdb_list = [

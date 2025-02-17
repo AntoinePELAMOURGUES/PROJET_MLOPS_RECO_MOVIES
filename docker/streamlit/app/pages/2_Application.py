@@ -27,18 +27,18 @@ username = username.capitalize()
 
 st.write(f"Bienvenue {username} !")
 
-st.write("Voici vos 3 films les mieux notés :")
-
 # Récupérer les 3 films les mieux notés pour l'utilisateur
 try:
     payload = {"userId": user_id}
     response = requests.post(
         "http://fastapi/predict/best_user_movies", json=payload, headers=headers
     )
-
     if response.status_code == 200:
         result = response.json()
-        if result:  # Vérifier que le résultat n'est pas vide
+        len_result = int(result["len"])
+        result = result["data"]
+        if result:
+            st.write(f"Voici vos {len_result} films les mieux notés :")
             display_movies_grid(result)
         else:
             st.warning("Aucun film trouvé.")

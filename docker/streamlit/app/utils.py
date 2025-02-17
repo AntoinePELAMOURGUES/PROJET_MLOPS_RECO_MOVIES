@@ -1,11 +1,13 @@
 import streamlit as st
 
 
-def display_movies_grid(movies_info):
-    # Créer trois lignes principales
-    rows = [
-        st.columns(4) for _ in range(3)
-    ]  # Crée une liste de 3 lignes avec 4 colonnes chacune
+def display_movies_grid(movies_info, len_movies):
+    if len_movies < 9:
+        # Créer deux lignes principales et 4 colonnes pour chaque ligne
+        rows = [st.columns(4) for _ in range(2)]
+    else:
+        # Créer trois lignes principales et 4 colonnes pour chaque ligne
+        rows = [st.columns(4) for _ in range(3)]
 
     # Diviser les films entre les lignes et colonnes
     for idx, movie_info in movies_info.items():
