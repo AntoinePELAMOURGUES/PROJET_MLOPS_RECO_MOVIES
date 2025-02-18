@@ -118,7 +118,7 @@ def train_model(
 
 if __name__ == "__main__":
     logger.info("########## TRAIN MODELS ##########")
-    data_directory = "/root/mount_file/models/"
+    data_directory = "/root/mount_file/models"
     ratings = fetch_table("ratings")
     movies = fetch_table("movies")
     df = pd.merge(ratings, movies, on="movieid", how="left")
