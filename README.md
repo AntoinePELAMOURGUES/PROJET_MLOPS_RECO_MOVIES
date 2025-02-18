@@ -60,7 +60,7 @@ cd {REPOSITORY}
 make install-initial-data
 ```
 
-3. Lancez le téléchargement des données initiales qui seront pré-traitées puis entrainez les modèles :
+3. Lancez le téléchargement des données initiales qui seront pré-traitées
 
 ```bash
 make preprocess-data
@@ -80,10 +80,6 @@ make start-minikube
 
 ```bash
 make start-airflow
-```
-
-```bash
-make start-mlflow
 ```
 
 Une fois les déploiements, volumes, services lancés, entrez le code suivant afin de vous rendre sur l'interface d'Airflow (user et mdp = admin)
@@ -114,7 +110,7 @@ Rendez-vous dans "Add New Server", entrez dans Général le nom que vous souhait
 
 ## 🧠 Entrainement de nos modèles de Machine Learning
 
-Vous pouvez maintenant lancer le DAG training_models pour entraîner un modèle TF-IDF afin d'extraire des caractéristiques des genres de films, ainsi qu'un modèle SVD pour la réduction de dimensionnalité et l'analyse des données.
+Vous pouvez maintenant lancer le DAG training_models pour entraîner un modèle SVD pour la réduction de dimensionnalité et l'analyse des données.
 
 3. Lancement de Fastapi, Streamlit
 

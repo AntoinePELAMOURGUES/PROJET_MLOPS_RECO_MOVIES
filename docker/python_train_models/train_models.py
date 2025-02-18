@@ -3,13 +3,11 @@ import pandas as pd
 from surprise import Dataset, Reader
 from surprise.prediction_algorithms.matrix_factorization import SVD
 import pickle
-from datetime import datetime
-import numpy as np
-from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.feature_extraction.text import TfidfVectorizer
 from surprise.model_selection import cross_validate
 import logging
 from sqlalchemy import create_engine
+from prometheus_client import Counter, Histogram, CollectorRegistry, Gauge
+import time
 
 # Configuration du logger
 logging.basicConfig(level=logging.INFO)
@@ -60,46 +58,15 @@ def fetch_table(table):
         return None
 
 
-########" MODELE DE RECOMMANDATION DE FILMS - SANS USERID ########"
-def train_TFIDF_model(df, data_directory):
-    """
-    Entraîne un modèle TF-IDF pour extraire des caractéristiques des genres de films,
-    et enregistre le modèle directement sur MLflow.
-    """
-    start_time = datetime.now()  # Démarrer la mesure du temps
-
-    # Vérifier les colonnes et le contenu
-    logger.info("Colonnes du DataFrame : %s", df.columns)
-
-    # Créer une instance de TfidfVectorizer
-    tfidf = TfidfVectorizer()
-
-    # Calculer la matrice TF-IDF
-    tfidf_matrix = tfidf.fit_transform(df["genres"])
-
-    # Afficher la taille de la matrice
-    logger.info(f"Dimensions de notre matrice TF-IDF : {tfidf_matrix.shape}")
-
-    # Calculer la similarité cosinus par morceaux
-    sim_cosinus = cosine_similarity(tfidf_matrix, tfidf_matrix)
-    logger.info(f"Dimensions de la matrice de similarité cosinus : {sim_cosinus.shape}")
-    indices = pd.Series(range(0, len(df)), index=df["title"])
-
-    # Sauvegadrer modèles vers data_directory ("/root/mount_file/models/")
-    with open(f"{data_directory}/tfidf.pkl", "wb") as f:
-        pickle.dump(tfidf, f)
-    with open(f"{data_directory}/sim_cosinus.pkl", "wb") as f:
-        pickle.dump(sim_cosinus, f)
-    with open(f"{data_directory}/indices.pkl", "wb") as f:
-        pickle.dump(indices, f)
-
-    logger.info("TF-IDF model trained and logged successfully.")
-
-    return tfidf, sim_cosinus, indices
+# METRIQUES PROMETHEUS
+TRAIN_DURATION = Histogram('model_training_duration_seconds', 'Duration of model training in seconds')
+CROSS_VALIDATION_DURATION = Histogram('cross_validation_duration_seconds', 'Duration of cross-validation in seconds')
+RMSE_GAUGE = Gauge('model_rmse', 'Root Mean Square Error of the model')
+MAE_GAUGE = Gauge('model_mae', 'Mean Absolute Error of the model')
+TRAIN_ITERATIONS = Counter('model_train_iterations_total', 'Total number of training iterations')
 
 
 #### MODELE DE RECOMMANDATION DE FILMS - AVEC USERID ####
-
 
 def train_model(
     df: pd.DataFrame,
@@ -112,23 +79,34 @@ def train_model(
     """Entraîne le modèle de recommandation sur les données fournies,
     et enregistre le modèle directement sur MLflow.
     """
-    # Diviser les données en ensembles d'entraînement et de test
     reader = Reader(rating_scale=(0.5, 5))
     data = Dataset.load_from_df(df[["userid", "movieid", "rating"]], reader=reader)
-    # Extraire le Trainset
     trainset = data.build_full_trainset()
     model = SVD(n_factors=n_factors, n_epochs=n_epochs, lr_all=lr_all, reg_all=reg_all)
-    # Entraîner le modèle
-    model.fit(trainset)
+
+    # Mesure du temps d'entraînement
+    with TRAIN_DURATION.time():
+        model.fit(trainset)
+
+    TRAIN_ITERATIONS.inc(n_epochs)
+
     logger.info("Début de la cross-validation")
-    # Effectuer la validation croisée sur le Trainset
-    cv_results = cross_validate(
-        model, data, measures=["RMSE", "MAE"], cv=5, return_train_measures=True
-    )
-    # Afficher les résultats
+    # Mesure du temps de cross-validation
+    with CROSS_VALIDATION_DURATION.time():
+        cv_results = cross_validate(
+            model, data, measures=["RMSE", "MAE"], cv=5, return_train_measures=True
+        )
+
+    # Mise à jour des métriques RMSE et MAE
     mean_rmse = cv_results["test_rmse"].mean()
+    mean_mae = cv_results["test_mae"].mean()
+    RMSE_GAUGE.set(mean_rmse)
+    MAE_GAUGE.set(mean_mae)
+
     logger.info("Moyenne des RMSE : %s", mean_rmse)
-    # Sauvegadrer modèles et reader vers data_directory ("/root/mount_file/models/")
+    logger.info("Moyenne des MAE : %s", mean_mae)
+
+    # Sauvegarde des modèles et du reader
     with open(f"{data_directory}/model_svd.pkl", "wb") as f:
         pickle.dump(model, f)
     with open(f"{data_directory}/reader.pkl", "wb") as f:
@@ -144,7 +122,5 @@ if __name__ == "__main__":
     ratings = fetch_table("ratings")
     movies = fetch_table("movies")
     df = pd.merge(ratings, movies, on="movieid", how="left")
-    logger.info("Entrainement du modèle TF-IDF")
-    train_TFIDF_model(movies, data_directory)
     logger.info("Entrainement du modèle Surprise SVD")
     train_model(df, data_directory)

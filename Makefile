@@ -41,7 +41,6 @@ install-initial-data:
 preprocess-data:
 	cd initial_data_pipeline && python recover_data.py
 	cd initial_data_pipeline && python build_features.py
-	cd initial_data_pipeline && python initial_train_models.py
 
 ###### MAKEFILE KUBERNETES ######
 
@@ -50,7 +49,7 @@ start-all: start-minikube start-airflow start-mlflow start-api
 
 # Démarrer Minikube avec les ressources spécifiées
 start-minikube:
-	minikube start --driver=docker --memory=18000 --cpus=4 --mount --mount-string="$(PROJECT_DIRECTORY):/host"
+	minikube start --driver=docker --memory=9000 --cpus=4 --mount --mount-string="$(PROJECT_DIRECTORY):/host"
 
 # Installer le gestionnaire de paquets Helm
 install-helm:
