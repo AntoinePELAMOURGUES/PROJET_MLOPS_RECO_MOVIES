@@ -25,7 +25,9 @@ user_id = result["User"]["id"]
 username = result["User"]["username"]
 username = username.capitalize()
 
-st.write(f"Bienvenue {username} !")
+st.header(f"Bienvenue {username} !")
+
+st.markdown("---")
 
 # Récupérer les 3 films les mieux notés pour l'utilisateur
 try:
@@ -80,12 +82,16 @@ except Exception as e:
 # Ajouter une ligne horizontale
 st.markdown("---")
 
+st.markdown("---")
+
 st.write(
     "Nous pouvons aussi vous faire des recommandations en relation avec un film. Entrez le nom d'un film que vous avez aimé et nous vous recommanderons des films similaires."
 )
 
+st.markdown("---")
+
 # Demander à l'utilisateur de saisir le nom d'un film
-movie_name = st.text_input("Entrez le nom d'un film que vous avez aimé", "Inception")
+movie_name = st.text_input("Entrez le nom d'un film que vous avez aimé", "Toy story")
 
 # Dans la partie recherche de films similaires
 if st.button("Rechercher"):
@@ -99,7 +105,7 @@ if st.button("Rechercher"):
         movie_find = api_result_3["movie_find"]
         if movie_find:
             st.write(
-                f"Voici le film que nous avons trouvé au sein de notre base de donnée : {movie_find}"
+                f"Voici le film que nous avons trouvé au sein de notre base de donnée :"
             )
             single_movie_info = api_result_3["single_movie_info"]
             if single_movie_info:
