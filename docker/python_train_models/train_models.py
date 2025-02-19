@@ -107,6 +107,10 @@ def train_model(
     logger.info("Moyenne des MAE : %s", mean_mae)
 
     # Sauvegarde des modèles et du reader
+    if not os.path.exists(data_directory):
+        os.makedirs(data_directory)
+        logger.info(f"Created directory: {data_directory}")
+
     with open(f"{data_directory}/model_svd.pkl", "wb") as f:
         pickle.dump(model, f)
     with open(f"{data_directory}/reader.pkl", "wb") as f:

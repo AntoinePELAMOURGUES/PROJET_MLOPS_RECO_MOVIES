@@ -49,7 +49,8 @@ start-all: start-minikube start-airflow start-mlflow start-api
 
 # Démarrer Minikube avec les ressources spécifiées
 start-minikube:
-	minikube start --driver=docker --memory=9000 --cpus=4 --mount --mount-string="$(PROJECT_DIRECTORY):/host"
+	minikube start --driver=docker --memory=9000 --cpus=4 --mount --mount-string="$(PROJECT_DIRECTORY):/host" --bootstrapper=kubeadm --extra-config=kubelet.authentication-token-webhook=true --extra-config=kubelet.authorization-mode=Webhook --extra-config=scheduler.bind-address=0.0.0.0 --extra-config=controller-manager.bind-address=0.0.0.0
+	minikube addons disable metrics-server
 
 # Installer le gestionnaire de paquets Helm
 install-helm:
@@ -74,6 +75,7 @@ start-airflow:
 	kubectl apply -f kubernetes/persistent-volumes/my-db-backup-pvc.yml
 	kubectl apply -f kubernetes/configmaps/airflow-configmaps.yml
 	kubectl apply -f kubernetes/deployments/pgadmin-deployment.yml
+	kubectl apply -f kubernetes/services/airflow-service.yml
 	kubectl apply -f kubernetes/services/pgadmin-service.yml
 	kubectl apply -f kubernetes/secrets/airflow-secrets.yaml
 
@@ -85,7 +87,7 @@ start-api:
 	kubectl apply -f kubernetes/services/api-service.yml
 
 start-monitoring:
-	helm install prometheus prometheus-community/kube-prometheus-stack --namespace monitoring --create-namespace --set grafana.service.type=NodePort --set promotheus.service.type=NodePort
+	helm install prometheus prometheus-community/kube-prometheus-stack --namespace airflow --create-namespace --set grafana.service.type=NodePort --set promotheus.service.type=NodePort
 
 
 

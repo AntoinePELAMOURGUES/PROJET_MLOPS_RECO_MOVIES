@@ -72,7 +72,7 @@ def save_data(df, data_directory, table_name):
 
 
 if __name__ == "__main__":
-    data_directory = "/root/mountfile/raw/silver"
+    data_directory = "/root/mountfile/backup_db"  # Répertoire de sauvegarde des fichiers CSV
 
     # Chargement des données à partir du chemin spécifié et enregistrement avec horodatage
     processed_ratings = fetch_table("ratings")
@@ -88,3 +88,7 @@ if __name__ == "__main__":
     processed_links = fetch_table("links")
     if processed_links is not None:
         save_data(processed_links, data_directory=data_directory, table_name="links")
+
+    processed_users = fetch_table("users")
+    if processed_users is not None:
+        save_data(processed_users, data_directory=data_directory, table_name="users")

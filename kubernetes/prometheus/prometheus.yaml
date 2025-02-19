@@ -1,0 +1,31 @@
+rbac:
+  create: true
+  additionalClusterRoleBindings:
+    - name: prometheus-airflow
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: prometheus-airflow
+      subjects:
+        - kind: ServiceAccount
+          name: prometheus-kube-prometheus-prometheus
+          namespace: monitoring
+
+  additionalClusterRoles:
+    - name: prometheus-airflow
+      rules:
+        - apiGroups: [""]
+          resources: ["services", "endpoints", "pods"]
+          verbs: ["get", "list", "watch"]
+
+  additionalServiceMonitors:
+    - name: airflow-statsd-monitor
+      namespaceSelector:
+        matchNames:
+          - airflow
+      selector:
+        matchLabels:
+          app: airflow-statsd
+      endpoints:
+        - port: metrics # Doit correspondre au nom du port dans le service airflow-statsd
+          interval: 15s
