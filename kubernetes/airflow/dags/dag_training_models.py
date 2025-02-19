@@ -35,6 +35,12 @@ with DAG(
         image="antoinepela/projet_reco_movies:train_models-latest",
         cmds=["python3", "train_models.py"],
         namespace="airflow",
+        ports=[k8s.V1ContainerPort(name="metrics", container_port=8000)],
+        labels={
+            "prometheus.io/scrape": "true",
+            "prometheus.io/path": "/metrics",
+            "prometheus.io/port": "8000"
+        },
         env_vars={
             "POSTGRES_HOST": "airflow-postgresql.airflow.svc.cluster.local",
             "POSTGRES_DB": "postgres",

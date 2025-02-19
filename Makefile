@@ -87,9 +87,14 @@ start-api:
 	kubectl apply -f kubernetes/services/api-service.yml
 
 start-monitoring:
-	helm install prometheus prometheus-community/kube-prometheus-stack --namespace airflow --create-namespace --set grafana.service.type=NodePort --set promotheus.service.type=NodePort
-
-
+	helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
+    --namespace airflow \
+    --create-namespace \
+    --set grafana.service.type=NodePort \
+    --set prometheus.service.type=NodePort \
+    --set prometheus.prometheusSpec.additionalScrapeConfigs[0].job_name=airflow-training-metrics \
+    --set prometheus.prometheusSpec.additionalScrapeConfigs[0].kubernetes_sd_configs[0].namespaces[0].names={airflow} \
+    --set-file prometheus.prometheusSpec.additionalScrapeConfigs[0].config= kubernetes/prometheus/prometheus.yaml
 
 # Supprimer les volumes persistants pour Airflow (s'ils existent)
 delete-pv-airflow:
