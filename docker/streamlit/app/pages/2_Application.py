@@ -34,12 +34,12 @@ try:
         "http://fastapi/predict/best_user_movies", json=payload, headers=headers
     )
     if response.status_code == 200:
-        result = response.json()
-        len_result = result["len"]
-        imdb_dict = result["data"]
-        if imdb_dict:
-            st.write(f"Voici vos {len_result} films les mieux notés :")
-            display_movies_grid(result)
+        result_1 = response.json()
+        len_result_1 = result_1["len"]
+        imdb_dict_1 = result_1["data"]
+        if imdb_dict_1:
+            st.write(f"Voici vos {len_result_1} films les mieux notés :")
+            display_movies_grid(result_1, 8)
         else:
             st.warning("Aucun film trouvé.")
     else:
@@ -62,9 +62,9 @@ try:
     )
 
     if response.status_code == 200:
-        result = response.json()
-        if result:  # Vérifier que le résultat n'est pas vide
-            display_movies_grid(result)
+        result_2 = response.json()
+        if result_2:  # Vérifier que le résultat n'est pas vide
+            display_movies_grid(result_2, 12)
         else:
             st.warning("Aucun film trouvé.")
     else:
@@ -95,19 +95,20 @@ if st.button("Rechercher"):
     )
 
     if response.status_code == 200:
-        api_result = response.json()
-        movie_find = api_result["movie_find"]
+        api_result_3 = response.json()
+        movie_find = api_result_3["movie_find"]
         if movie_find:
             st.write(
                 f"Voici le film que nous avons trouvé au sein de notre base de donnée : {movie_find}"
             )
-            single_movie_info = api_result["single_movie_info"]
+            single_movie_info = api_result_3["single_movie_info"]
             if single_movie_info:
-                display_movies_grid(single_movie_info)
+                display_movies_grid(single_movie_info, 1)
                 st.markdown("---")
-        predict_movies_infos = api_result["predict_movies"]
+        st.write("Voici nos recommandations de films similaires :")
+        predict_movies_infos = api_result_3["predict_movies"]
         if predict_movies_infos:
-            display_movies_grid(result)
+            display_movies_grid(predict_movies_infos, 12)
         else:
             st.warning("Aucun film trouvé.")
     else:

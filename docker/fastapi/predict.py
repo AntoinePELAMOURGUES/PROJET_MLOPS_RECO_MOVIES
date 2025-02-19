@@ -164,7 +164,7 @@ def recommend_movies(
 
 
 # Fonction pour charger les artefacts du modèle TF-IDF
-def train_tfidf(df):
+def train_tfidf(movies):
     """Charge les artefacts du modèle TF-IDF sauvegardés.
 
     Args:
@@ -398,7 +398,7 @@ links = fetch_table("links")
 model, reader = load_model("model_svd.pkl", "reader.pkl")
 
 # Charger les artefacts du modèle TF-IDF
-tfidf, sim_cosinus, indices = train_tfidf("movies")
+tfidf, sim_cosinus, indices = train_tfidf(movies)
 
 # Création d'un dataframe pour les liens entre les films et les ID IMDB
 movies_links_df = movies.merge(links, on="movieid", how="left")
@@ -467,7 +467,8 @@ async def predict(user_request: UserRequest) -> Dict[str, Any]:
 
         start_tmdb_time = time.time()
         api_tmdb = api_tmdb_request(imdb_list)
-        results = {"len": len(api_tmdb), "data": api_tmdb}
+        len_api_tmdb = len(api_tmdb)
+        results = {"len": len_api_tmdb, "data": api_tmdb}
         tmdb_duration = time.time() - start_tmdb_time
 
         tmdb_request_duration_histogram.labels(

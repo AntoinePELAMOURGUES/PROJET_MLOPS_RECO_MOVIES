@@ -17,5 +17,6 @@ spec:
       containers:
         - name: streamlit
           image: antoinepela/projet_reco_movies:streamlit-latest
+          imagePullPolicy: Always # Force Kubernetes à toujours tirer l'image
           ports:
             - containerPort: 8501
