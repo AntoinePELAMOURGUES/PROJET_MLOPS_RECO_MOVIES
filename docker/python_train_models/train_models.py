@@ -6,8 +6,9 @@ import pickle
 from surprise.model_selection import cross_validate
 import logging
 from sqlalchemy import create_engine
-from prometheus_client import Counter, Histogram, CollectorRegistry, Gauge
+from prometheus_client import Counter, Histogram, CollectorRegistry, Gauge, start_http_server
 import time
+
 
 # Configuration du logger
 logging.basicConfig(level=logging.INFO)
@@ -122,6 +123,7 @@ def train_model(
 
 if __name__ == "__main__":
     logger.info("########## TRAIN MODELS ##########")
+    start_http_server(8000)
     data_directory = "/root/mount_file/models"
     ratings = fetch_table("ratings")
     movies = fetch_table("movies")
