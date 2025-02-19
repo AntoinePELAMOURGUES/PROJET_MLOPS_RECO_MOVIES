@@ -17,6 +17,20 @@ Avec l'essor des services de streaming et la demande croissante pour des recomma
 
 Ce repository est donc un témoignage de notre apprentissage et de notre capacité à développer des solutions innovantes dans le domaine du Machine Learning et des API. Nous vous invitons à explorer le code, à tester l'API et à contribuer à son amélioration.
 
+<h2>:diamond_shape_with_a_dot_inside:Quelques images</h2>
+
+<img src="./img/accueil.png" alt="Accueil">
+
+<img src="./img/inscription.png" alt="Formulaire d'inscription">
+
+<img src="./img/connexion.png" alt="Formulaire de connexion">
+
+<img src="./img/top_user_films.png" alt="Meilleurs films user">
+
+<img src="./img/top_predict.png" alt="Meilleurs prédictions">
+
+<img src="./img/similaire.png" alt="Films similaires">
+
 <h2>:diamond_shape_with_a_dot_inside:Guide de démarrage rapide</h2>
 
 Vous souhaitez déployer notre application de recommandation de films.

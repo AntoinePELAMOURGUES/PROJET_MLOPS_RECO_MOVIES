@@ -29,7 +29,7 @@ st.header(f"Bienvenue {username} !")
 
 st.markdown("---")
 
-# Récupérer les 3 films les mieux notés pour l'utilisateur
+# Récupérer les 8 films les mieux notés pour l'utilisateur
 try:
     payload = {"userId": user_id}
     response = requests.post(
@@ -41,7 +41,7 @@ try:
         imdb_dict_1 = result_1["data"]
         if imdb_dict_1:
             st.write(f"Voici vos {len_result_1} films les mieux notés :")
-            display_movies_grid(result_1, 8)
+            display_movies_grid(imdb_dict_1, 8)
         else:
             st.warning("Aucun film trouvé.")
     else:
