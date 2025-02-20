@@ -9,11 +9,12 @@ from sqlalchemy import create_engine
 from prometheus_client import Counter, Histogram, CollectorRegistry, Gauge, start_http_server
 import time
 
+# Création d'un registre de collecteurs Prometheus
+collector = CollectorRegistry()
 
 # Configuration du logger
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
 
 def load_config():
     """Charge la configuration de la base de données à partir des variables d'environnement."""
@@ -24,22 +25,20 @@ def load_config():
         "password": os.getenv("POSTGRES_PASSWORD"),
     }
 
-
 def connect(config):
     """Connecte au serveur PostgreSQL et retourne l'engine."""
     try:
         engine = create_engine(
             f"postgresql+psycopg2://{config['user']}:{config['password']}@{config['host']}/{config['database']}"
         )
-        logger.info("Connected to the PostgreSQL server.")
+        logger.info("Connecté au serveur PostgreSQL.")
         return engine
     except Exception as error:
-        logger.error(f"Connection error: {error}")
+        logger.error(f"Erreur de connexion : {error}")
         return None
 
-
 def fetch_table(table):
-    """Récupère lignes d'une table et retourne un DataFrame."""
+    """Récupère les lignes d'une table et retourne un DataFrame."""
     config = load_config()
     engine = connect(config)
 
@@ -47,27 +46,43 @@ def fetch_table(table):
         try:
             query = f"SELECT * FROM {table};"
             df = pd.read_sql_query(query, engine)
-            logger.info(f"Data {table} fetched successfully.")
+            logger.info(f"Données de {table} récupérées avec succès.")
             return df
         except Exception as e:
-            logger.error(f"Error fetching data: {e}")
+            logger.error(f"Erreur lors de la récupération des données : {e}")
             return None
         finally:
-            engine.dispose()  # Dispose of the engine properly
+            engine.dispose()  # Libère proprement l'engine
     else:
-        logger.error("Failed to connect to the database.")
+        logger.error("Échec de la connexion à la base de données.")
         return None
 
+# MÉTRIQUES PROMETHEUS
+# Ajout d'étiquettes pour différencier les modèles et les versions
+train_duration_histogram = Histogram('model_training_duration_seconds',
+                                     'Durée de l\'entraînement du modèle en secondes',
+                                      labelnames=['model_type', 'version'],
+                                      registry = collector)
 
-# METRIQUES PROMETHEUS
-TRAIN_DURATION = Histogram('model_training_duration_seconds', 'Duration of model training in seconds')
-CROSS_VALIDATION_DURATION = Histogram('cross_validation_duration_seconds', 'Duration of cross-validation in seconds')
-RMSE_GAUGE = Gauge('model_rmse', 'Root Mean Square Error of the model')
-MAE_GAUGE = Gauge('model_mae', 'Mean Absolute Error of the model')
-TRAIN_ITERATIONS = Counter('model_train_iterations_total', 'Total number of training iterations')
+cross_validation_duration_histogram = Histogram('cross_validation_duration_seconds',
+                                                'Durée de la validation croisée en secondes',
+                                               labelnames=['model_type', 'version'],
+                                               registry = collector)
 
+rmse_gauge = Gauge('model_rmse',
+                   'Erreur quadratique moyenne du modèle',
+                   labelnames=['model_type', 'version'],
+                   registry = collector)
 
-#### MODELE DE RECOMMANDATION DE FILMS - AVEC USERID ####
+mae_gauge = Gauge('model_mae',
+                  'Erreur absolue moyenne du modèle',
+                  labelnames=['model_type', 'version'],
+                  registry = collector)
+
+train_iterations_counter = Counter('model_train_iterations_total',
+                                   'Nombre total d\'itérations d\'entraînement',
+                                    labelnames=['model_type', 'version'],
+                                    registry = collector)
 
 def train_model(
     df: pd.DataFrame,
@@ -86,14 +101,15 @@ def train_model(
     model = SVD(n_factors=n_factors, n_epochs=n_epochs, lr_all=lr_all, reg_all=reg_all)
 
     # Mesure du temps d'entraînement
-    with TRAIN_DURATION.time():
+    with train_duration_histogram.labels(model_type='SVD', version='1.0').time():
         model.fit(trainset)
 
-    TRAIN_ITERATIONS.inc(n_epochs)
+    # Incrémentation du compteur d'itérations
+    train_iterations_counter.labels(model_type='SVD', version='1.0').inc(n_epochs)
 
-    logger.info("Début de la cross-validation")
-    # Mesure du temps de cross-validation
-    with CROSS_VALIDATION_DURATION.time():
+    logger.info("Début de la validation croisée")
+    # Mesure du temps de validation croisée
+    with cross_validation_duration_histogram.labels(model_type='SVD', version='1.0').time():
         cv_results = cross_validate(
             model, data, measures=["RMSE", "MAE"], cv=5, return_train_measures=True
         )
@@ -101,8 +117,8 @@ def train_model(
     # Mise à jour des métriques RMSE et MAE
     mean_rmse = cv_results["test_rmse"].mean()
     mean_mae = cv_results["test_mae"].mean()
-    RMSE_GAUGE.set(mean_rmse)
-    MAE_GAUGE.set(mean_mae)
+    rmse_gauge.labels(model_type='SVD', version='1.0').set(mean_rmse)
+    mae_gauge.labels(model_type='SVD', version='1.0').set(mean_mae)
 
     logger.info("Moyenne des RMSE : %s", mean_rmse)
     logger.info("Moyenne des MAE : %s", mean_mae)
@@ -110,23 +126,22 @@ def train_model(
     # Sauvegarde des modèles et du reader
     if not os.path.exists(data_directory):
         os.makedirs(data_directory)
-        logger.info(f"Created directory: {data_directory}")
+        logger.info(f"Répertoire créé : {data_directory}")
 
     with open(f"{data_directory}/model_svd.pkl", "wb") as f:
         pickle.dump(model, f)
     with open(f"{data_directory}/reader.pkl", "wb") as f:
         pickle.dump(reader, f)
-    logger.info("Surprise SVD model trained and logged successfully.")
+    logger.info("Modèle Surprise SVD entraîné et enregistré avec succès.")
 
     return model, reader
 
-
 if __name__ == "__main__":
-    logger.info("########## TRAIN MODELS ##########")
-    start_http_server(8000)
+    logger.info("########## ENTRAÎNEMENT DES MODÈLES ##########")
+    start_http_server(8000)  # Démarrage du serveur HTTP pour Prometheus
     data_directory = "/root/mount_file/models"
     ratings = fetch_table("ratings")
     movies = fetch_table("movies")
     df = pd.merge(ratings, movies, on="movieid", how="left")
-    logger.info("Entrainement du modèle Surprise SVD")
+    logger.info("Entraînement du modèle Surprise SVD")
     train_model(df, data_directory)

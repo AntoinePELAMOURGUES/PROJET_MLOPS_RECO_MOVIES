@@ -4,7 +4,34 @@ import requests
 from bs4 import BeautifulSoup as bs
 import psycopg2
 from psycopg2 import IntegrityError
+from prometheus_client import Counter, Histogram, Gauge, CollectorRegistry
 
+# Création du registry Prometheus
+registry = CollectorRegistry()
+
+# Métriques Prometheus
+scrape_duration = Histogram('scrape_duration_seconds',
+                            'Durée du scraping en secondes',
+                            ['source'],
+                            registry=registry)
+
+api_request_duration = Histogram('api_request_duration_seconds',
+                                 'Durée des requêtes API en secondes',
+                                 ['api'],
+                                 registry=registry)
+
+movies_inserted = Counter('movies_inserted_total',
+                          'Nombre total de films insérés',
+                          registry=registry)
+
+insertion_errors = Counter('insertion_errors_total',
+                           'Nombre total d\'erreurs d\'insertion',
+                           ['error_type'],
+                           registry=registry)
+
+db_connection_gauge = Gauge('db_connection_status',
+                            'Statut de la connexion à la base de données',
+                            registry=registry)
 
 def load_config():
     """Charge la configuration de la base de données à partir des variables d'environnement."""
@@ -15,22 +42,22 @@ def load_config():
         "password": os.getenv("POSTGRES_PASSWORD"),
     }
 
-
 def connect(config):
     """Connecte au serveur PostgreSQL et retourne la connexion."""
     try:
         conn = psycopg2.connect(**config)
-        print("Connected to the PostgreSQL server.")
+        print("Connecté au serveur PostgreSQL.")
+        db_connection_gauge.set(1)  # Connexion réussie
         return conn
     except (psycopg2.DatabaseError, Exception) as error:
-        print(f"Connection error: {error}")
+        print(f"Erreur de connexion : {error}")
+        db_connection_gauge.set(0)  # Échec de connexion
         return None
-
 
 # Récupération du token TMDB depuis les variables d'environnement
 tmdb_token = os.getenv("TMDB_TOKEN")
 
-
+@scrape_duration.labels('imdb').time()
 def scrape_imdb_first_page():
     """Scrape les données des films depuis IMDb et les renvoie sous forme de listes."""
     headers = {
@@ -53,7 +80,7 @@ def scrape_imdb_first_page():
         print(f"Erreur lors de la récupération de la page IMDb : {e}")
         return []
 
-
+@api_request_duration.labels('tmdb_genres').time()
 def genres_request():
     """Effectue des requêtes à l'API TMDB pour récupérer les informations des genres de films."""
     url = "https://api.themoviedb.org/3/genre/movie/list?language=en"
@@ -70,7 +97,7 @@ def genres_request():
         print(f"Erreur lors de la récupération des genres : {e}")
         return {}
 
-
+@api_request_duration.labels('tmdb_movies').time()
 def api_tmdb_request():
     """Effectue des requêtes à l'API TMDB pour récupérer les informations des films."""
     results = {}
@@ -120,7 +147,6 @@ def api_tmdb_request():
             results[str(index)] = {"error": f"Erreur lors de la requête TMDB : {e}"}
 
     return results
-
 
 def insert_movies_and_links(scraped_data):
     """Insère les films et les liens dans la base de données."""
@@ -173,20 +199,23 @@ def insert_movies_and_links(scraped_data):
                     (movieid, imdb_id, tmdb_id),
                 )
                 print(f"Film '{title} {year}' inséré avec succès.")
+                movies_inserted.inc()  # Incrémenter le compteur de films insérés
 
             except IntegrityError as e:
                 print(
                     f"Erreur lors de l'insertion pour '{title}': {e}. Ignorer cette entrée."
                 )
+                insertion_errors.labels('integrity_error').inc()  # Incrémenter le compteur d'erreurs
                 conn.rollback()  # Annuler la transaction pour éviter de bloquer les prochaines insertions
 
         conn.commit()  # Valider les modifications après toutes les insertions
     except Exception as e:
         print(f"Erreur lors de l'insertion: {e}")
+        insertion_errors.labels('general_error').inc()  # Incrémenter le compteur d'erreurs
     finally:
         cursor.close()
         conn.close()
-
+        db_connection_gauge.set(0)  # Connexion fermée
 
 if __name__ == "__main__":
     results = api_tmdb_request()
