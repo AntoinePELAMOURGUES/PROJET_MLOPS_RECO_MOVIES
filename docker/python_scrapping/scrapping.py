@@ -4,7 +4,7 @@ import requests
 from bs4 import BeautifulSoup as bs
 import psycopg2
 from psycopg2 import IntegrityError
-from prometheus_client import Counter, Histogram, Gauge, CollectorRegistry
+from prometheus_client import Counter, Histogram, Gauge, CollectorRegistry, start_http_server
 
 # Création du registry Prometheus
 registry = CollectorRegistry()
@@ -57,7 +57,6 @@ def connect(config):
 # Récupération du token TMDB depuis les variables d'environnement
 tmdb_token = os.getenv("TMDB_TOKEN")
 
-@scrape_duration.labels('imdb').time()
 def scrape_imdb_first_page():
     """Scrape les données des films depuis IMDb et les renvoie sous forme de listes."""
     headers = {
@@ -80,7 +79,8 @@ def scrape_imdb_first_page():
         print(f"Erreur lors de la récupération de la page IMDb : {e}")
         return []
 
-@api_request_duration.labels('tmdb_genres').time()
+scrape_imdb_first_page = scrape_duration.labels('imdb').time()(scrape_imdb_first_page)
+
 def genres_request():
     """Effectue des requêtes à l'API TMDB pour récupérer les informations des genres de films."""
     url = "https://api.themoviedb.org/3/genre/movie/list?language=en"
@@ -97,7 +97,8 @@ def genres_request():
         print(f"Erreur lors de la récupération des genres : {e}")
         return {}
 
-@api_request_duration.labels('tmdb_movies').time()
+genres_request = api_request_duration.labels('tmdb_genres').time()(genres_request)
+
 def api_tmdb_request():
     """Effectue des requêtes à l'API TMDB pour récupérer les informations des films."""
     results = {}
@@ -119,7 +120,6 @@ def api_tmdb_request():
         try:
             response = requests.get(url, headers=headers)
             response.raise_for_status()  # Vérifier que la requête a réussi
-
             data = response.json()
 
             if data["movie_results"]:
@@ -147,6 +147,8 @@ def api_tmdb_request():
             results[str(index)] = {"error": f"Erreur lors de la requête TMDB : {e}"}
 
     return results
+
+api_tmdb_request = api_request_duration.labels('tmdb_movies').time()(api_tmdb_request)
 
 def insert_movies_and_links(scraped_data):
     """Insère les films et les liens dans la base de données."""
@@ -218,6 +220,7 @@ def insert_movies_and_links(scraped_data):
         db_connection_gauge.set(0)  # Connexion fermée
 
 if __name__ == "__main__":
+    start_http_server(8000, registry=registry)
     results = api_tmdb_request()
     print(results)
     insert_movies_and_links(results)

@@ -138,7 +138,6 @@ def train_model(
 
 if __name__ == "__main__":
     logger.info("########## ENTRAÎNEMENT DES MODÈLES ##########")
-    start_http_server(8000)  # Démarrage du serveur HTTP pour Prometheus
     data_directory = "/root/mount_file/models"
     ratings = fetch_table("ratings")
     movies = fetch_table("movies")
