@@ -1,14 +1,13 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: airflow-statsd
+  name: airflow-webserver
   namespace: airflow
-  labels:
-    app: airflow-statsd # Doit matcher le selector du ServiceMonitor
 spec:
-  ports:
-    - name: metrics # <-- Nom requis pour le ServiceMonitor
-      port: 9102
-      protocol: TCP
   selector:
-    app: airflow-statsd
+    app: airflow-webserver
+  ports:
+    - protocol: TCP
+      port: 8080 # Port sur lequel le webserver Airflow écoute
+      targetPort: 8080
+  type: ClusterIP

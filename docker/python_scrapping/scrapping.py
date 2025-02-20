@@ -55,7 +55,7 @@ def connect(config):
         return None
 
 # Récupération du token TMDB depuis les variables d'environnement
-tmdb_token = os.getenv("TMDB_TOKEN")
+tmdb_token = os.getenv("TMDB_API_TOKEN")
 
 def scrape_imdb_first_page():
     """Scrape les données des films depuis IMDb et les renvoie sous forme de listes."""
@@ -221,6 +221,7 @@ def insert_movies_and_links(scraped_data):
 
 if __name__ == "__main__":
     start_http_server(8000, registry=registry)
+    print("Serveur Prometheus démarré sur le port 8000")
     results = api_tmdb_request()
     print(results)
     insert_movies_and_links(results)

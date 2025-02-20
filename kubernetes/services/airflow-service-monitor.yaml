@@ -1,0 +1,65 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: airflow-statsd
+  namespace: airflow
+  labels:
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: airflow-statsd
+      component: statsd
+      release: airflow
+      tier: airflow
+  namespaceSelector:
+    matchNames:
+      - airflow
+  endpoints:
+    - port: metrics # Nom du port dans le service
+      path: /metrics
+      interval: 10s
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: python-scrapping-pod-monitor
+  namespace: airflow
+  labels:
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      dag_id: scrapping_TMDB_data
+      task_id: python_scrapping
+  namespaceSelector:
+    matchNames:
+      - airflow
+  podMetricsEndpoints:
+    - port: "8000" # Port sur lequel le serveur HTTP expose les métriques
+      path: /metrics
+      interval: 30s
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: airflow-webserver-monitor
+  namespace: airflow
+  labels:
+    release: prometheus # Assurez-vous que cela correspond à votre release Prometheus
+spec:
+  selector:
+    matchLabels:
+      app: airflow-webserver
+      component: webserver
+      release: airflow
+      tier: airflow
+  namespaceSelector:
+    matchNames:
+      - airflow
+  endpoints:
+    - port: airflow-ui # Le nom du port dans le service
+      interval: 30s # Intervalle de scraping
+      path: /metrics # Assurez-vous que ce chemin est correct pour Airflow
