@@ -59,3 +59,18 @@ spec:
         - name: airflow-local-data-folder
           persistentVolumeClaim:
             claimName: airflow-local-data-folder
+
+---
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: fastapi
+  namespace: airflow
+spec:
+  selector:
+    app: fastapi
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8000

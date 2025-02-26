@@ -68,14 +68,12 @@ start-airflow:
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-dags-folder-pv.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-logs-folder-pv.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-data-init-folder-pv.yml
-	kubectl apply -f kubernetes/persistent-volumes/my-db-backup-pv.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-dags-folder-pvc.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-logs-folder-pvc.yml
 	kubectl apply -f kubernetes/persistent-volumes/airflow-local-data-init-folder-pvc.yml
-	kubectl apply -f kubernetes/persistent-volumes/my-db-backup-pvc.yml
 	kubectl apply -f kubernetes/configmaps/airflow-configmaps.yml
 	kubectl apply -f kubernetes/deployments/pgadmin-deployment.yml
-	kubectl apply -f kubernetes/services/airflow-service.yml
+	kubectl apply -f kubernetes/services/airflow-service-monitor.yaml
 	kubectl apply -f kubernetes/services/pgadmin-service.yml
 	kubectl apply -f kubernetes/secrets/airflow-secrets.yaml
 
@@ -90,7 +88,6 @@ start-monitoring:
 	helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
 	--namespace airflow \
 	--create-namespace \
-	-f kubernetes/prometheus/prometheus.yaml \
 	--set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false
 
 

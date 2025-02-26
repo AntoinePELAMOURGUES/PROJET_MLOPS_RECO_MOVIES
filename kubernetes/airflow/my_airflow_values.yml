@@ -8,24 +8,6 @@ logs:
     enabled: true
     existingClaim: airflow-local-logs-folder
 
-models:
-  persistence:
-    enabled: true
-    existingClaim: models-pvc # PVC existant pour les modèles
-
-backup:
-  persistence:
-    enabled: true
-    existingClaim: my-db-backup
-
-extraVolumes:
-  - name: airflow-init-db
-    persistentVolumeClaim:
-      claimName: airflow-init-db
-
-extraVolumeMounts:
-  - name: airflow-init-db
-    mountPath: /docker-entrypoint-initdb.d # Répertoire où PostgreSQL cherche les scripts d'initialisation
 
 uid: 1000
 gid: 1000
@@ -37,4 +19,4 @@ scheduler:
 
 executor: CeleryKubernetesExecutor
 
-webserverSecretKey: 370562eacc440d7d9a9a1ad86eef576c
+
