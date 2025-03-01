@@ -85,10 +85,8 @@ start-api:
 	kubectl apply -f kubernetes/services/api-service.yml
 
 start-monitoring:
-	helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
-	--namespace airflow \
-	--create-namespace \
-	--set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false
+	helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+	helm install prometheus prometheus-community/kube-prometheus-stack --namespace $(NAMESPACE) --create-namespace
 
 
 # Supprimer les volumes persistants pour Airflow (s'ils existent)
@@ -108,4 +106,3 @@ change-namespace-airflow:
 # Nettoyer les espaces de noms spécifiques dans Kubernetes (Airflow)
 clean-kube-airflow: check-kube
 	kubectl delete namespace $(NAMESPACE) || true
-
